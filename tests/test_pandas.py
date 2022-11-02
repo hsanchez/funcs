@@ -15,4 +15,12 @@ class TestPandas(TestCase):
                                  'Bad', 'Good']})
     df_ord = xpd.ordinal_encode(df, [])
     self.assertEqual(df_ord.shape, (14, 1))
+    
+  def test_ordinal_encoding_view(self):
+    df = pd.DataFrame({'rating':['Good', 'Bad', 'Good', 'Good', 
+                                 'Bad', 'Neutral', 'Good', 'Good', 
+                                 'Neutral', 'Neutral', 'Neutral','Good', 
+                                 'Bad', 'Good']})
+    df_ord = xpd.ordinal_encode(df, [], True)
+    self.assertEqual(df_ord.shape, (14, 2))
 
