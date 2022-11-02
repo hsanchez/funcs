@@ -1,0 +1,7 @@
+black[jupyter]
+flake8
+isort
+pytest-cov
+pytest>=6.2.3
+twine
+wheel
