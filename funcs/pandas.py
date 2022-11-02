@@ -179,6 +179,8 @@ def ordinal_encode(df: pd.DataFrame, cols: ty.List[str], encoding_view: bool = F
   in the dataframe. The expected shape is 2D.
   """
   df_ord = df.copy()
+  if not cols or len(cols) == 0:
+    cols = df_ord.columns.to_list()
   enc = OrdinalEncoder()
   df_ord[cols] = enc.fit_transform(df_ord[cols])
   if encoding_view:
