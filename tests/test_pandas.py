@@ -13,6 +13,6 @@ class TestPandas(TestCase):
                                  'Bad', 'Neutral', 'Good', 'Good', 
                                  'Neutral', 'Neutral', 'Neutral','Good', 
                                  'Bad', 'Good']})
-    df_ord = xpd.ordinal_encode(df, ['rating'])
-    self.assertEqual(df_ord.shape, (14, 2))
+    df_ord = xpd.ordinal_encode(df, [])
+    self.assertEqual(df_ord.shape, (14, 1))
 
