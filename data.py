@@ -6,12 +6,13 @@ import typing as ty
 
 from .pinstall import install as install_package
 
+
 try:
   from sklearn.preprocessing import OrdinalEncoder
 except ImportError:
   install_package('scikit-learn')
   from sklearn.preprocessing import OrdinalEncoder
-  
+
 try:
   import pandas as pd
 except ImportError:

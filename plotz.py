@@ -5,22 +5,7 @@ import typing as ty
 import numpy as np
 import pandas as pd
 
-try:
-  import importlib
-except ImportError:
-  install_package('importlib')
-  import importlib
-
-
-from .pinstall import install as install_package
-
-
-def import_module(module: str) -> ty.Any:
-  try:
-    return importlib.import_module(module)
-  except ImportError:
-    install_package(module)
-    return importlib.import_module(module)
+from .pinstall import import_module
 
 
 def build_plotly_browser_state(build_html: ty.Any) -> ty.Any:
@@ -46,20 +31,12 @@ def plot_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
   title = kwargs.get('title', "Column Correlation Heatmap")
   
   if pyplot_module is None:
-    try:
-      plt = import_module('matplotlib.pyplot')
-    except ImportError:
-      install_package('matplotlib')
-      plt = import_module('matplotlib.pyplot')
+    plt = import_module('matplotlib.pyplot')
   else:
     plt = pyplot_module
   
   if seaborn_module is None:
-    try:
-      sns = import_module('seaborn')
-    except ImportError:
-      install_package('seaborn')
-      sns = import_module('seaborn')
+    sns = import_module('seaborn')
   else:
     sns = seaborn_module
     

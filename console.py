@@ -4,6 +4,11 @@ import sys
 
 from .pinstall import install as install_package
 
+# # thx to https://stackoverflow.com/questions/41678073
+# Console = getattr(import_module('rich.console', 'rich'), 'Console')
+# Live = getattr(import_module('rich.live', 'rich'), 'Live')
+# Progress = getattr(import_module('rich.progress', 'rich'), 'Progress')
+
 try:
   from rich.console import Console
   from rich.live import Live

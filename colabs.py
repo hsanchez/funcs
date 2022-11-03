@@ -10,7 +10,7 @@ import typing as ty
 from itertools import islice
 from timeit import default_timer as timer
 
-from .console import new_live_display, stderr
+from .console import new_live_display
 
 Decoratee = ty.TypeVar('Decoratee', bound=ty.Callable[..., ty.Any])
 OutputType = ty.TypeVar("OutputType")
