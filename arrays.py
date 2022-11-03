@@ -1,6 +1,14 @@
+#!/usr/bin/env python
+
 import typing as ty
 
-import numpy as np
+from pinstall import install as install_package
+
+try:
+  import numpy as np
+except ImportError:
+  install_package('numpy', True)
+  import numpy as np
 
 
 def tensor_fusion(h_x: np.array, h_y: np.array) -> np.ndarray:

@@ -1,9 +1,16 @@
+#!/usr/bin/env python
+
 import typing as ty
 
-import gdown
+from .pinstall import install as install_package
+
+try:
+  import gdown
+except ImportError:
+  install_package('gdown')
 
 from .colabs import resolve_path
-from .console import stdout, stderr
+from .console import stderr, stdout
 
 
 def download_data_from_google_drive(google_file_id: str, output_file_name: str, quiet_download: bool) -> str:

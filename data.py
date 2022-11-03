@@ -1,10 +1,26 @@
+#!/usr/bin/env python
+
+import itertools
 import pathlib as pl
 import typing as ty
 
-from sklearn.preprocessing import OrdinalEncoder
+from .pinstall import install as install_package
+
+try:
+  from sklearn.preprocessing import OrdinalEncoder
+except ImportError:
+  install_package('scikit-learn')
+  from sklearn.preprocessing import OrdinalEncoder
+  
+try:
+  import pandas as pd
+except ImportError:
+  install_package('pandas', True)
+  import pandas as pd
+
+from collections import Counter
 
 import numpy as np
-import pandas as pd
 
 from .colabs import resolve_path
 from .console import progress_display
@@ -33,18 +49,6 @@ def count_nulls_in_dataframe(input_df: pd.DataFrame) -> pd.DataFrame:
   return df_t.sort_values("percent_null", ascending=False)
 
 
-def count_distinct_values(input_df: pd.DataFrame) -> pd.DataFrame:
-  _check_input_dataframe(input_df)
-  unique_counts = {}
-  for idx in input_df.columns.values:
-    cnt = input_df[idx].nunique()
-    unique_counts[idx] = cnt
-  unique_ctr = pd.DataFrame([unique_counts]).T
-  unique_ctr = unique_ctr.rename(columns={0: 'count'})
-  unique_ctr.index.names = ["Column"]
-  return unique_ctr.sort_values("count", ascending=False)
-
-
 def get_column_datatypes(input_df: pd.DataFrame) -> pd.DataFrame:
   _check_input_dataframe(input_df)
   dtype = {}
@@ -71,22 +75,6 @@ def drop_columns_safely(input_df: pd.DataFrame, columns: list, inplace: bool = F
   _check_input_dataframe(input_df)
   intersected_columns = list(set(input_df.columns.values).intersection(set(columns)))
   return input_df.drop(intersected_columns, axis=1, inplace=True)
-
-
-def remove_correlated_pairs(input_df: pd.DataFrame, threshold: float = 0.8) -> pd.DataFrame:
-  _check_input_dataframe(input_df)
-  nulls_df = count_nulls_in_dataframe(input_df).T
-  corr_pairs = find_correlated_pairs(input_df, threshold)
-  dropped_cols = set()
-  for (p1, p2) in corr_pairs:
-    if p1 not in dropped_cols and p2 not in dropped_cols:
-      if nulls_df[p1].values[0] > nulls_df[p2].values[0]:
-        dropped_cols.add(p2)
-      else:
-        dropped_cols.add(p1)
-  dropped_cols = list(np.sort(list(dropped_cols)))
-  new_df = drop_columns_safely(input_df, dropped_cols)
-  return new_df, dropped_cols
 
 
 def detect_nan_columns(input_df: pd.DataFrame) -> list:
@@ -129,6 +117,20 @@ def ordinal_encode(df: pd.DataFrame, cols: ty.List[str], encoding_view: bool = F
     # encoding view
     return df.assign(rating_enc=df_ord)
   return df_ord
+
+def get_pairwise_co_occurrence(array_of_arrays: ty.List[list], items_taken_together: int = 2) -> pd.DataFrame:
+  counter = Counter()
+  for v in array_of_arrays:
+    permuted_values = list(itertools.combinations(v, items_taken_together))
+    counter.update(permuted_values)
+  # The key in the dict being a list cannot be possible unless it's converted to a string.
+  co_oc = pd.DataFrame(
+    np.array([[key,value] for key,value in counter.items()]),
+    columns=['items_taken_together','frequency'])
+  co_oc['frequency'] = co_oc['frequency'].astype(int)
+  co_oc = co_oc[co_oc['frequency'] > 0]
+  co_oc = co_oc.sort_values(['frequency'], ascending=False)
+  return co_oc
 
 
 if __name__ == "__main__":

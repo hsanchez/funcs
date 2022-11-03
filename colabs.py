@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import datetime
 import functools
 import itertools
@@ -9,7 +11,6 @@ from itertools import islice
 from timeit import default_timer as timer
 
 from .console import live_display
-
 
 Decoratee = ty.TypeVar('Decoratee', bound=ty.Callable[..., ty.Any])
 OutputType = ty.TypeVar("OutputType")
