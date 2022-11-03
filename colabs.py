@@ -17,14 +17,12 @@ OutputType = ty.TypeVar("OutputType")
 
 
 # thx to https://stackoverflow.com/questions/53581278
-def is_run_in_colab(debug: bool = False) -> bool:
-  if debug:
-    stderr.print(os.environ['PATH'], hasattr(__builtins__,'__IPYTHON__'))
+def is_run_in_colab(extra_builtins: ty.Any = None, get_ipython_fn: ty.Callable[..., ty.Any] = None) -> bool:
   if 'google.colab' in os.environ['PATH']:
     return True
-  elif hasattr(__builtins__,'__IPYTHON__'):
+  elif hasattr(__builtins__,'__IPYTHON__') or hasattr(extra_builtins,'__IPYTHON__'):
     from IPython import get_ipython
-    return 'google.colab' in str(get_ipython())
+    return 'google.colab' in str(get_ipython()) or 'google.colab' in str(get_ipython_fn())
   return False
 
 
