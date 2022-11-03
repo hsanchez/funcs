@@ -2,7 +2,7 @@
 
 import sys
 
-from pinstall import install as install_package
+from .pinstall import install as install_package
 
 try:
   from rich.console import Console
