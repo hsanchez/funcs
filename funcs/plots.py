@@ -17,12 +17,10 @@ def init_plotly_notebook_mode(go_offline: bool = True, connected: bool = False) 
   init_notebook_mode(connected=False)
 
 
-def configure_plotly_browser_state(display_fn: ty.Callable[..., ty.Any]):
+def get_plotly_browser_state() -> ty.Any:
   import IPython
-  if not display_fn or display_fn is None:
-    raise ValueError("Colab's display_fn is None")
 
-  display_fn(IPython.core.display.HTML('''
+  return IPython.core.display.HTML('''
         <script src="/static/components/requirejs/require.js"></script>
         <script>
           requirejs.config({
@@ -32,7 +30,7 @@ def configure_plotly_browser_state(display_fn: ty.Callable[..., ty.Any]):
             },
           });
         </script>
-        '''))
+        ''')
 
 
 def plot_correlation_heatmap(input_df: pd.DataFrame, title: str = "Column Correlation Heatmap", threshold: int = 0, figsize: ty.Tuple[int, int] = (10, 8)) -> pd.DataFrame:
