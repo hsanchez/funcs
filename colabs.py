@@ -10,14 +10,16 @@ import typing as ty
 from itertools import islice
 from timeit import default_timer as timer
 
-from .console import new_live_display
+from .console import new_live_display, stderr
 
 Decoratee = ty.TypeVar('Decoratee', bound=ty.Callable[..., ty.Any])
 OutputType = ty.TypeVar("OutputType")
 
 
 # thx to https://stackoverflow.com/questions/53581278
-def is_run_in_colab():
+def is_run_in_colab(debug: bool = False) -> bool:
+  if debug:
+    stderr.print(os.environ['PATH'], hasattr(__builtins__,'__IPYTHON__'))
   if 'google.colab' in os.environ['PATH']:
     return True
   elif hasattr(__builtins__,'__IPYTHON__'):
