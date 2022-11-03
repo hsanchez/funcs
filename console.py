@@ -17,9 +17,13 @@ except ImportError:
 
 stdout = Console()
 stderr = Console(file=sys.stderr)
-progress_display = Progress(console=stderr)
-live_display = Live(console=stderr, screen=False, auto_refresh=False)
 
+
+def new_live_display(console: Console, screen: bool = False, auto_refresh: bool = False) -> Live:
+  return Live(console=console, screen=screen, auto_refresh=auto_refresh)
+
+def new_progress_display(console: Console) -> Progress:
+  return Progress(console=console)
 
 if __name__ == "__main__":
   pass

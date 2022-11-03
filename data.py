@@ -23,7 +23,7 @@ from collections import Counter
 import numpy as np
 
 from .colabs import resolve_path
-from .console import progress_display
+from .console import new_progress_display
 
 
 def _check_input_dataframe(input_df: pd.DataFrame) -> None:
@@ -82,7 +82,7 @@ def detect_nan_columns(input_df: pd.DataFrame) -> list:
   return input_df.columns[input_df.isnull().any()].tolist()
 
 
-def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, dtype: ty.Any = None) -> pd.DataFrame:
+def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None) -> pd.DataFrame:
   import math
 
   # in chunk reading be careful as pandas might infer a columns dtype 
@@ -94,7 +94,7 @@ def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, 
   resolved_file_path = pl.Path(resolve_path(file_path))
   df = pd.DataFrame()
   total_needed_iters = math.ceil(fullsize / chunksize)
-  with progress_display as progress:
+  with new_progress_display(console) as progress:
     task = progress.add_task(f"Reading {resolved_file_path.name} ...", total=total_needed_iters)
     for x in pd.read_csv(str(resolved_file_path), chunksize=chunksize, dtype=dtype):
       df = df.append(x)

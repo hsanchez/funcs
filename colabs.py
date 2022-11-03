@@ -10,7 +10,7 @@ import typing as ty
 from itertools import islice
 from timeit import default_timer as timer
 
-from .console import live_display
+from .console import new_live_display
 
 Decoratee = ty.TypeVar('Decoratee', bound=ty.Callable[..., ty.Any])
 OutputType = ty.TypeVar("OutputType")
@@ -84,7 +84,7 @@ def is_file_real(f: ty.Union[pathlib.Path, str]) -> bool:
     return False
 
 
-def with_status(prefix: str, suffix: ty.Callable[[ty.Any], str] = lambda _ : '') -> ty.Callable[[Decoratee], Decoratee]:
+def with_status(console: ty.Any, prefix: str, suffix: ty.Callable[[ty.Any], str] = lambda _ : '') -> ty.Callable[[Decoratee], Decoratee]:
   """This decorator writes the prefix, followed by three dots, then runs the
   decorated function.  Upon success, it appends check mark, upon failure, it appends
   an cross mark.  If suffix is set, the result of the computation is passed to suffix,
@@ -92,7 +92,7 @@ def with_status(prefix: str, suffix: ty.Callable[[ty.Any], str] = lambda _ : '')
   def decorator(func: Decoratee) -> Decoratee:
     @functools.wraps(func)
     def wrapper(*args: ty.Any, **kwargs: ty.Any) -> ty.Any:
-      with live_display as live:
+      with new_live_display(console) as live:
         live.update(f"{prefix} ...", refresh=True)
         start = timer()
         try:
