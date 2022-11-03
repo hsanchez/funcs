@@ -1,40 +1,15 @@
 #!/usr/bin/env python
 
-from .pinstall import install as install_package
-
-try:
-  import cufflinks as cf
-except ImportError:
-  install_package('cufflinks')
-  import cufflinks as cf
-
-try:
-  import seaborn as sns
-except ImportError:
-  install_package('seaborn')
-  import seaborn as sns
-
-try:
-  import plotly
-except ImportError:
-  install_package('plotly', True)
-  import plotly
-
 import typing as ty
 
 import numpy as np
 import pandas as pd
-from plotly.offline import init_notebook_mode
+
+from .pinstall import install as install_package
 
 
-def init_plotly_notebook_mode(go_offline: bool = True, connected: bool = False) -> None:
-  if go_offline:
-    cf.go_offline()
-  init_notebook_mode(connected=connected)
-
-
-def configure_plotly_browser_state(render_html: ty.Any, display_fn: ty.Callable[..., ty.Any]):
-  display_fn(render_html('''
+def build_plotly_browser_state(build_html: ty.Any) -> ty.Any:
+  return build_html('''
         <script src="/static/components/requirejs/require.js"></script>
         <script>
           requirejs.config({
@@ -44,14 +19,37 @@ def configure_plotly_browser_state(render_html: ty.Any, display_fn: ty.Callable[
             },
           });
         </script>
-        '''))
+        ''')
 
 
 def plot_correlation_heatmap(
   input_df: pd.DataFrame,
-  plt: ty.Any,
-  title: str = "Column Correlation Heatmap", 
-  threshold: int = 0, figsize: ty.Tuple[int, int] = (10, 8)) -> pd.DataFrame:
+  **kwargs) -> pd.DataFrame:
+  
+  pyplot_module = kwargs.get('pyplot_module', None)
+  seaborn_module = kwargs.get('seaborn_module', None)
+  threshold = kwargs.get('threshold', 0)
+  figsize = kwargs.get('figsize', (10, 8))
+  title = kwargs.get('title', "Column Correlation Heatmap")
+  
+  if pyplot_module is None:
+    try:
+      import matplotlib.pyplot as plt
+    except ImportError:
+      install_package('matplotlib')
+      import matplotlib.pyplot as plt
+  else:
+    plt = pyplot_module
+  
+  if seaborn_module is None:
+    try:
+      import seaborn as sns
+    except ImportError:
+      install_package('seaborn')
+      import seaborn as sns
+  else:
+    sns = seaborn_module
+    
   corr = input_df.corr()
   corr = corr.where(np.abs(corr) > threshold, 0)
 
@@ -60,7 +58,7 @@ def plot_correlation_heatmap(
   mask[np.triu_indices_from(mask)] = True
 
   # Set up the matplotlib figure
-  f, ax = plt.subplots(figsize=figsize)
+  f, ax = pyplot_module.subplots(figsize=figsize)
 
   # Generate a custom diverging colormap
   cmap = sns.diverging_palette(240, 10, as_cmap=True)
