@@ -82,3 +82,8 @@ from helpfunc import colabs, console, gdrive, numpy, pandas, plots
 
 We have a [set of guidelines](CONTRIBUTING.md) for contributing to `funcs`.  These are guidelines, not rules. Use your best judgment, and feel free
 to propose  changes to this document in a pull request.
+
+
+### ⚖️ License
+
+This project is under the MIT License. See the [LICENSE](https://github.com/hsanchez/funcs/blob/main/LICENSE) file for the full license text.
