@@ -24,7 +24,7 @@ from collections import Counter
 import numpy as np
 
 from .colabs import resolve_path
-from .console import new_progress_display
+from .console import new_progress_display, stdout
 
 
 def _check_input_dataframe(input_df: pd.DataFrame) -> None:
@@ -128,6 +128,135 @@ def normalize_column(
   for col in df.columns:
     df[col] = (df[col] - df[col].min()) / (df[col].max() - df[col].min()) * (max_norm - min_norm) + min_norm
   return df
+
+
+def describe_timeline(time_frame_skipgrams: np.ndarray, time_periods_in_window_range: ty.Union[np.ndarray, list]) -> pd.DataFrame:
+  """Prints the distribution of the skipgrams in the time frame"""
+  if isinstance(time_periods_in_window_range, np.ndarray):
+    time_periods_in_window_range = time_periods_in_window_range.tolist()
+  
+  # Count the number of skipgrams in each time frame
+  time_frame_skipgrams_counts = Counter(time_frame_skipgrams)
+  # Print the distribution
+  print("Distribution of skipgrams in the time frame")
+  
+  data_for_dataframe = {}
+  for time_frame, skipgrams_count in time_frame_skipgrams_counts.items():
+    data_for_dataframe[time_frame] = skipgrams_count
+    time_period = time_periods_in_window_range[time_frame]
+    stdout.print(f"Time period {time_period}: {skipgrams_count} skipgrams")
+
+  return pd.DataFrame(data_for_dataframe, index=[0])
+
+
+def get_unique_column_values(input_df: pd.DataFrame, target_column: str) -> np.ndarray:
+  _check_input_dataframe(input_df)
+  return input_df[target_column].unique()
+
+
+def generate_skipgrams(
+  input_df: pd.DataFrame, 
+  vocab: ty.Iterable, 
+  window_date_offset: pd.DateOffset,
+  target_col: str, 
+  datetime_column: str = 'sent_time') -> ty.List[tuple]:
+  
+  _check_input_dataframe(input_df)
+  vocab_size = sum(1 for _ in vocab)
+  skipgrams = []
+  with new_progress_display(console = stdout) as progress:
+    task = progress.add_task("Generating skipgrams ...", total=vocab_size)
+    for w in vocab:
+      # collect all records from the ACTIVITY_DF where triplet_one == a.
+      # note that an activity with the triple_one format is an activity relabeled 
+      # with **three** elements: 
+      #   original activity name + project name + email thread topology 
+      res_a = input_df.loc[input_df[target_col] == w]
+      # iterate over all res_a records and collect all records 
+      # that are within a time window
+      for _, row_a in res_a.iterrows():
+        s_time = row_a[datetime_column] - window_date_offset
+        e_time = row_a[datetime_column] + window_date_offset
+        
+        # get all members in time window
+        res_row_a = input_df.loc[(input_df[datetime_column] >= s_time) 
+                                 & (input_df[datetime_column] <= e_time)]
+        
+        w_skipgrams = [(w, act_x) for act_x in res_row_a[target_col].tolist()]
+        skipgrams.extend(w_skipgrams)
+        
+      progress.update(task, advance=1)
+  return skipgrams
+
+
+def timeline_slicing(
+  timeline: pd.DataFrame,
+  target_column: str,
+  datetime_col: str = 'sent_time',
+  window_size: int = 4,
+  by_period: str = 'week') -> ty.Tuple[np.ndarray, np.ndarray]:
+  
+  if by_period not in ['year', 'week', 'day']:
+    raise ValueError(f"Invalid value for by_period: {by_period}")
+
+  def get_time_period_series(df: pd.DataFrame, bp: str, col: str) -> ty.Any:
+    if bp == 'year':
+      return df[col].dt.isocalendar().year
+    elif bp == 'week':
+      return df[col].dt.isocalendar().week
+    elif bp == 'day':
+      return df[col].dt.isocalendar().day
+    else:
+      raise ValueError(f"Invalid value for time_period: {bp}")
+    
+
+  data = []
+  # window size
+  ws = pd.DateOffset(hours=window_size)
+  
+  by_period_series = get_time_period_series(timeline, by_period, datetime_col)
+  start_period = by_period_series.min()
+  end_period = by_period_series.max() + 1
+  
+  if by_period == 'year':
+    ws = pd.DateOffset(years=window_size)
+  
+  tp_in_window_range = range(start_period, end_period)  
+  for time_period in tp_in_window_range:
+    # 1. get data-frame partition
+    tp_df = timeline.loc[by_period_series == time_period]
+    # 2. get unique activities list for activity column
+    tp_unique_vals = get_unique_column_values(input_df=tp_df, target_column=target_column)
+    # 3. get skipgrams for the current time period
+    skipgrams_by_tp = generate_skipgrams(
+      tp_df, tp_unique_vals, ws,
+      target_col=target_column, datetime_column=datetime_col)
+    # 4. add the list to final_data, [[], [], []]
+    data.append(skipgrams_by_tp)
+  return np.array(data, dtype=object), np.array(list(tp_in_window_range))
+
+
+def build_cooccur_matrix(skipgrams: np.ndarray, activities: ty.List[str], all_time_periods: bool = False) -> np.ndarray:
+  def build_matrix(x: np.ndarray, acts: ty.List[str], size: int, period: int = -1):
+    mat = np.zeros([size, size], dtype=int)
+    if period == -1:
+      # process all time periods
+      for j in range(x.shape[0]):
+        for i in x[j]:
+          mat[acts.index(i[0])][acts.index(i[1])] += 1
+    else:
+      # process a specific time period
+      for i in skipgrams[period]:
+        mat[acts.index(i[0])][acts.index(i[1])] += 1
+    return mat
+
+  cooccur = []
+  if all_time_periods:
+    cooccur.append(build_matrix(skipgrams, activities, len(activities)))
+  else:
+    for t in range(skipgrams.shape[0]):
+      cooccur.append(build_matrix(skipgrams, activities, len(activities), period = t))
+  return np.array(cooccur)
 
 
 def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None) -> pd.DataFrame:

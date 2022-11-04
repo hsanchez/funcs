@@ -1,25 +1,9 @@
 #!/usr/bin/env python
 
-import typing as ty
-
 import numpy as np
 import pandas as pd
 
 from .pinstall import import_module
-
-
-def build_plotly_browser_state(build_html: ty.Any) -> ty.Any:
-  return build_html('''
-        <script src="/static/components/requirejs/require.js"></script>
-        <script>
-          requirejs.config({
-            paths: {
-              base: '/static/base',
-              plotly: 'https://cdn.plot.ly/plotly-5.11.0.min.js?noext',
-            },
-          });
-        </script>
-        ''')
 
 
 def plot_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
@@ -31,7 +15,7 @@ def plot_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
   title = kwargs.get('title', "Column Correlation Heatmap")
   
   if pyplot_module is None:
-    plt = import_module('matplotlib.pyplot')
+    plt = import_module('matplotlib.pyplot', 'matplotlib')
   else:
     plt = pyplot_module
   

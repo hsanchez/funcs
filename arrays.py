@@ -10,6 +10,18 @@ except ImportError:
   install_package('numpy', True)
   import numpy as np
 
+try:
+  from scipy.spatial import procrustes
+except ImportError:
+  install_package('scipy')
+  from scipy.spatial import procrustes
+
+try:
+  from sklearn.decomposition import PCA
+except ImportError:
+  install_package('scikit-learn')
+  from sklearn.decomposition import PCA
+
 
 def tensor_fusion(h_x: np.array, h_y: np.array) -> np.ndarray:
   """Computes the tensor fusion based on the recommendation of 
@@ -74,6 +86,52 @@ def get_mode_in_array(array: np.ndarray) -> ty.Optional[ty.Any]:
   vals, counts = np.unique(array, return_counts=True)
   idx = np.argmax(counts)
   return vals[idx]
+
+
+def init_U_and_V_embeddings(vocab_size: int, timeline_size: int, rank: int = 50) -> ty.Tuple[np.ndarray, np.ndarray]:
+  """Initialize variables (embeddings) for the model:
+    U, V = init_vars(vocab_size=288, timeline_size=len(timeline))
+    U.shape, V.shape
+  """
+  U, V = [], []
+  U.append(np.random.randn(vocab_size,rank) / np.sqrt(rank))
+  V.append(np.random.randn(vocab_size,rank) / np.sqrt(rank))
+  
+  for t in range(1, timeline_size):
+    U.append(U[0].copy())
+    V.append(V[0].copy())
+  
+  return np.array(U), np.array(V)
+
+
+def all_but_the_top(v, n_principal_components=10):
+  # thx to https://gist.github.com/lgalke/febaaa1313d9c11f3bc8240defed8390
+  # All-but-the-Top: Simple and Effective Postprocessing for Word Representations
+  # Paper: https://arxiv.org/abs/1702.01417
+  
+  # 1. Subtract mean vector
+  v_tilde = v - np.mean(v, axis=0)
+  
+  # 2. Compute the first 'n' principal components
+  #    on centered embedding vectors
+  u = PCA(n_components=n_principal_components).fit(v_tilde).components_  # [n_principal_components, emb_size]
+  
+  # Subtract first 'n' principal components
+  # [vocab_size, emb_size] @ [emb_size, D] @ [n_principal_components, emb_size] -> [vocab_size, emb_size]
+  return v_tilde - (v @ u.T @ u)
+
+
+def procrustes_orthogonal(embeddings: np.ndarray) -> np.ndarray:
+  for k in range(1, len(embeddings)):
+    embeddings[k-1], embeddings[k], _ = procrustes(
+    embeddings[k-1], embeddings[k])
+  return embeddings
+
+
+def make_matrices_same_size(Y_tgt: np.ndarray, U_src: np.ndarray) -> np.ndarray:
+  U_src_exp = np.zeros((Y_tgt.shape[0], Y_tgt.shape[1]), dtype=complex)
+  U_src_exp[:U_src.shape[0], :U_src.shape[1]] = U_src
+  return U_src_exp
 
 
 if __name__ == "__main__":
