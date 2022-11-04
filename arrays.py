@@ -68,5 +68,13 @@ def drop_missing_vals(x: np.ndarray) -> np.ndarray:
   return x[~np.isnan(x)]
 
 
+def get_mode_in_array(array: np.ndarray) -> ty.Optional[ty.Any]:
+  if not array or array.size == 0:
+    return None
+  vals, counts = np.unique(array, return_counts=True)
+  idx = np.argmax(counts)
+  return vals[idx]
+
+
 if __name__ == "__main__":
   pass

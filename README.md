@@ -36,7 +36,7 @@ covering numpy, pandas, colabs, Google drive, and plots.
 
 ```shell
 #%%
-from helpfunc import colabs, console, gdrive, arrays, data, plotz
+from helpfunc import colabs, console, gdrive, arrays, data, nlp, plotz
 ```
 
 ### 🤝 Contributions

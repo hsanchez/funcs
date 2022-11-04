@@ -75,12 +75,59 @@ def find_correlated_pairs(input_df: pd.DataFrame, threshold: float = 0.8) -> pd.
 def drop_columns_safely(input_df: pd.DataFrame, columns: list, inplace: bool = False) -> pd.DataFrame:
   _check_input_dataframe(input_df)
   intersected_columns = list(set(input_df.columns.values).intersection(set(columns)))
-  return input_df.drop(intersected_columns, axis=1, inplace=True)
+  return input_df.drop(intersected_columns, axis=1, inplace=inplace)
+
+
+def find_zero_one_columns(input_df: pd.DataFrame) -> list:
+  _check_input_dataframe(input_df)
+  return input_df.columns[input_df.isin([0, 1]).all()].tolist()
+
+
+def find_boolean_columns(input_df: pd.DataFrame) -> list:
+  _check_input_dataframe(input_df)
+  return input_df.columns[input_df.dtypes == bool].tolist()
 
 
 def detect_nan_columns(input_df: pd.DataFrame) -> list:
   _check_input_dataframe(input_df)
   return input_df.columns[input_df.isnull().any()].tolist()
+
+
+def standardize_dataframe(input_df: pd.DataFrame, add_gaussian_noise: bool = False) -> pd.DataFrame:
+  _check_input_dataframe(input_df)
+  
+  df = input_df.copy()
+  if add_gaussian_noise:
+    # We first add Gaussian noise to all the values in the dataframe
+    (no_rows, no_feats) = df.shape
+    mu, sigma = 0, 0.1
+    # creating a noise with the same dimension as the df
+    noise = np.random.normal(mu, sigma, (no_rows, no_feats))
+    noisy_df = df + noise
+    df = noisy_df
+  
+  for col in df.columns:
+    # zero mean: remove the average
+    # unit variance: divide by the standard deviation
+    df[col] = (df[col] - df[col].mean()) / df[col].std()
+  return df
+
+
+def normalize_column(
+  input_df: pd.DataFrame,
+  is_datetime: bool = False,
+  min_norm: int = 0,
+  max_norm: int = 1) -> pd.DataFrame:
+  """
+  Normalize the column values to a range of [min_norm, max_norm]
+  """
+  _check_input_dataframe(input_df)
+  df = input_df.copy()
+  if is_datetime:
+    df[col] = pd.to_datetime(df[col]).astype(np.int64)
+  for col in df.columns:
+    df[col] = (df[col] - df[col].min()) / (df[col].max() - df[col].min()) * (max_norm - min_norm) + min_norm
+  return df
 
 
 def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None) -> pd.DataFrame:
