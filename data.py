@@ -113,6 +113,34 @@ def standardize_dataframe(input_df: pd.DataFrame, add_gaussian_noise: bool = Fal
   return df
 
 
+def get_records_in_time_window(
+  input_df: pd.DataFrame, 
+  start_time_column: str, 
+  start_time: np.datetime64, 
+  end_time: np.datetime64, 
+  end_time_column: str = None) -> pd.DataFrame:
+    """Obtain dataframe records that fall within a user-defined time window
+
+    Args:
+      input_df: input dataframe
+      time_column: dataframe column storing the time data serving as search filter
+      start_time: time window start time
+      end_time: time window end time
+
+    Returns:
+      The resulting subset dataframe
+    """
+
+    assert start_time <= end_time
+    
+    if end_time_column is None:
+      end_time_column = start_time_column
+
+    tmp_df = input_df.loc[(input_df[start_time_column] >= start_time) & (input_df[end_time_column] <= end_time)]
+
+    return tmp_df
+
+
 def normalize_column(
   input_df: pd.DataFrame,
   is_datetime: bool = False,
@@ -179,8 +207,7 @@ def generate_skipgrams(
         e_time = row_a[datetime_column] + window_date_offset
         
         # get all members in time window
-        res_row_a = input_df.loc[(input_df[datetime_column] >= s_time) 
-                                 & (input_df[datetime_column] <= e_time)]
+        res_row_a = get_records_in_time_window(input_df, datetime_column, s_time, e_time)
         
         w_skipgrams = [(w, act_x) for act_x in res_row_a[target_col].tolist()]
         skipgrams.extend(w_skipgrams)
@@ -259,7 +286,7 @@ def build_cooccur_matrix(skipgrams: np.ndarray, activities: ty.List[str], all_ti
   return np.array(cooccur)
 
 
-def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None) -> pd.DataFrame:
+def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None, separator: str = ',') -> pd.DataFrame:
   import math
 
   # in chunk reading be careful as pandas might infer a columns dtype 
@@ -273,7 +300,7 @@ def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, 
   total_needed_iters = math.ceil(fullsize / chunksize)
   with new_progress_display(console) as progress:
     task = progress.add_task(f"Reading {resolved_file_path.name} ...", total=total_needed_iters)
-    for x in pd.read_csv(str(resolved_file_path), chunksize=chunksize, dtype=dtype):
+    for x in pd.read_csv(str(resolved_file_path), sep=separator, chunksize=chunksize, dtype=dtype):
       df = df.append(x)
       df = pd.concat([df, x], ignore_index=True)
       progress.update(task, advance=1)
@@ -308,6 +335,39 @@ def get_pairwise_co_occurrence(array_of_arrays: ty.List[list], items_taken_toget
   co_oc = co_oc[co_oc['frequency'] > 0]
   co_oc = co_oc.sort_values(['frequency'], ascending=False)
   return co_oc
+
+
+def get_records_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None) -> pd.DataFrame:
+  # e.g., get_records_match_condition(df, df.month == 'January')
+  if condition is None:
+    return input_df
+  return input_df.loc[condition(input_df)]
+
+
+def select_columns_subset_from_dataframe(input_df: pd.DataFrame, columns: ty.List[str]) -> pd.DataFrame:
+    """Selects a subset of columns from a given input dataframe.
+
+    Args:
+      input_df: input dataframe
+      columns: subset of columns to select
+
+    Returns:
+      The resulting subset dataframe
+
+    Raises:
+      LookupError: If columns do not exist in the input_df 
+    """
+
+    # check if columns exist in the input dataframe
+    if set(columns).issubset(input_df.columns):
+        result_df = input_df[columns]
+    else:
+        raise LookupError(f"Input columns: {columns} do not exist in the dataframe!")
+    
+    return result_df
+
+
+
 
 
 if __name__ == "__main__":

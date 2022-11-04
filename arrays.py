@@ -45,7 +45,8 @@ def tensor_fusion(h_x: np.array, h_y: np.array) -> np.ndarray:
   K_xy = np.kron(h_x_1, h_y_1)
 
   return K_xy
-  
+
+
 def vector_fusion_3D(x: np.array, y: np.array, z: np.array) -> np.ndarray:    
   # add 1 at the beginning of each 1-D vector
   h_x = np.concatenate((np.ones(1), x), axis=0)
@@ -132,6 +133,43 @@ def make_matrices_same_size(Y_tgt: np.ndarray, U_src: np.ndarray) -> np.ndarray:
   U_src_exp = np.zeros((Y_tgt.shape[0], Y_tgt.shape[1]), dtype=complex)
   U_src_exp[:U_src.shape[0], :U_src.shape[1]] = U_src
   return U_src_exp
+
+
+def drop_zero_rows(input_array: np.ndarray) -> np.ndarray:
+    """Remove all rows that are composed of all zeroes.
+    Args:
+      input_array: ndarray to sanitize
+    Returns:
+      The resulting array after removal of all zero rows.
+    """
+    input_array = input_array[~np.all(input_array == 0, axis=1)]
+
+    return input_array
+
+
+def cosine_similarity(x: np.ndarray, y: np.ndarray) -> float:
+  return np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
+
+
+def summarize_vectors_sequence(vecs_seq: np.ndarray, alpha: float = 0.5) -> np.ndarray:
+  """Summarize a sequence of vectors by taking the weighted average of the vectors.
+  Args:
+    vecs: a sequence of vectors
+    alpha: the weight of the first vector in the sequence
+  Returns:
+    a vector
+  """
+  return np.average(vecs_seq, axis=0, weights=np.arange(alpha, 1.0, (1.0 - alpha) / len(vecs_seq)))
+
+
+def summarize_vectors_sequence_by_weighted_mixing(vecs_seq: np.ndarray, alpha: float = 0.5) -> np.ndarray:
+  U = np.array(vecs_seq[0])
+
+  S = [cosine_similarity(U, vec_j) * np.array(vec_j) for vec_j in vecs_seq[1:]]
+  S = np.add.reduce(S)
+  N = np.sum([cosine_similarity(U, vec_j) for vec_j in vecs_seq[1:]])
+  
+  return U * alpha + (1 - alpha) * (S / N)
 
 
 if __name__ == "__main__":

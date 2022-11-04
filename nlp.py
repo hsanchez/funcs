@@ -85,5 +85,6 @@ def deduplicate(names: ty.Set[str]) -> ty.Set[str]:
       group_lookup[names[row]] = names[col]
   return set([v for _, v in group_lookup.items()])
 
+
 if __name__ == "__main__":
   pass
