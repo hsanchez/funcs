@@ -1,4 +1,4 @@
-# SIGNAL Utils
+# SIGNAL's Helper Functions
 
 ## Description 👇
 
