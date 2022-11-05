@@ -14,6 +14,7 @@ from .console import new_live_display
 
 Decoratee = ty.TypeVar('Decoratee', bound=ty.Callable[..., ty.Any])
 OutputType = ty.TypeVar("OutputType")
+PathLike = ty.Union[str, pathlib.Path]
 
 
 # thx to https://stackoverflow.com/questions/53581278
@@ -30,6 +31,7 @@ def is_run_in_colab(extra_builtins: ty.Any = None, get_ipython_fn: ty.Callable[.
 def take(n, iterable):
   "Return first n items of the iterable as a list"
   return list(islice(iterable, n))
+
 
 def take_from_dict(n, d):
   return take(n, d.items())
@@ -77,7 +79,7 @@ def is_dir_empty(dir_path: pathlib.Path) -> bool:
   return not any(dir_path.iterdir())
 
 
-def is_file_real(f: ty.Union[pathlib.Path, str]) -> bool:
+def is_file_real(f: PathLike) -> bool:
   try:
     return pathlib.Path(resolve_path(f)).exists()
   except Exception:

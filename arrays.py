@@ -2,6 +2,7 @@
 
 import typing as ty
 from collections import namedtuple
+from numbers import Number
 
 from .console import new_progress_display, stderr
 from .modules import install as install_package
@@ -25,6 +26,15 @@ try:
 except ImportError:
   install_package('scikit-learn')
   from sklearn.decomposition import PCA
+  
+
+NumberLike = ty.Union[Number, ty.Iterable[Number]]
+
+
+def sigmoid(x: NumberLike) -> NumberLike:
+  # to avoid RuntimeWarning: Overflow encountered in exp warning
+  x = np.float128(x)
+  return 1.0 / (1.0 + np.exp(-x))
 
 
 def tensor_fusion(h_x: np.array, h_y: np.array) -> np.ndarray:
