@@ -4,7 +4,7 @@ import typing as ty
 from collections import namedtuple
 
 from .console import new_progress_display, stderr
-from .pinstall import install as install_package
+from .modules import install as install_package
 
 try:
   import numpy as np

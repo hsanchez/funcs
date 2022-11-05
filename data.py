@@ -4,7 +4,7 @@ import itertools
 import pathlib as pl
 import typing as ty
 
-from .pinstall import install as install_package
+from .modules import install as install_package
 
 
 try:
@@ -23,7 +23,7 @@ from collections import Counter
 
 import numpy as np
 
-from .colabs import resolve_path
+from .common import resolve_path
 from .console import new_progress_display, stdout
 
 

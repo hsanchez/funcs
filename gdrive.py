@@ -2,14 +2,14 @@
 
 import typing as ty
 
-from .pinstall import install as install_package
+from .modules import install as install_package
 
 try:
   import gdown
 except ImportError:
   install_package('gdown')
 
-from .colabs import resolve_path
+from .common import resolve_path
 from .console import stderr, stdout
 
 # TODO(has) add all datasets from signal-public to this dictionary

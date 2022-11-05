@@ -5,7 +5,7 @@ import typing as ty
 
 import numpy as np
 
-from .pinstall import install as install_package
+from .modules import install as install_package
 
 try:
   from sparse_dot_topn import awesome_cossim_topn

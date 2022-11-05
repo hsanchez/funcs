@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from .pinstall import import_module
+from .modules import import_module
 
 
 def plot_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:

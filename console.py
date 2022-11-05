@@ -2,7 +2,7 @@
 
 import sys
 
-from .pinstall import install as install_package
+from .modules import install as install_package
 
 # # thx to https://stackoverflow.com/questions/41678073
 # Console = getattr(import_module('rich.console', 'rich'), 'Console')
