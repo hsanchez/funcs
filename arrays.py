@@ -165,6 +165,11 @@ def cosine_similarity(x: np.ndarray, y: np.ndarray) -> float:
   return np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
 
 
+def normalize_vector_norms(vectors: np.ndarray) -> np.ndarray:
+  norms = np.linalg.norm(vectors, axis=1)
+  return norms / norms.sum(axis=0)
+
+
 def summarize_vectors_sequence(vecs_seq: np.ndarray, alpha: float = 0.5) -> np.ndarray:
   """Summarize a sequence of vectors by taking the weighted average of the vectors.
   Args:

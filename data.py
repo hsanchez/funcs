@@ -78,6 +78,12 @@ def drop_columns_safely(input_df: pd.DataFrame, columns: list, inplace: bool = F
   return input_df.drop(intersected_columns, axis=1, inplace=inplace)
 
 
+def drop_records_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None) -> pd.DataFrame:
+  if condition is None:
+    return input_df
+  return input_df.drop[condition(input_df)]
+
+
 def find_zero_one_columns(input_df: pd.DataFrame) -> list:
   _check_input_dataframe(input_df)
   return input_df.columns[input_df.isin([0, 1]).all()].tolist()
