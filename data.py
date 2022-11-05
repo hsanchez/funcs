@@ -367,8 +367,5 @@ def select_columns_subset_from_dataframe(input_df: pd.DataFrame, columns: ty.Lis
     return result_df
 
 
-
-
-
 if __name__ == "__main__":
   pass
