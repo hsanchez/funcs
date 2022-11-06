@@ -29,6 +29,7 @@ except ImportError:
   
 
 NumberLike = ty.Union[Number, ty.Iterable[Number]]
+Alignment = namedtuple('Alignment', ['score', 'X', 'Y'])
 
 
 def sigmoid(x: NumberLike) -> NumberLike:
@@ -216,7 +217,7 @@ def apply_seq_kernel(vec: ty.Union[ty.List[float], np.ndarray], kernel_radius: i
   return c_emb_prime
 
 
-def build_distance_matrix(vec_i: np.ndarray, vec_j: np.ndarray) -> np.ndarray:
+def build_cosine_similarity_matrix(vec_i: np.ndarray, vec_j: np.ndarray) -> np.ndarray:
   return 1.0 - cdist(vec_i, vec_j, metric='cosine')
 
 
@@ -245,7 +246,7 @@ def build_scoring_matrix(a: np.ndarray, w_i: float = 1.0, w_j: float = 1.0, epsi
   return sa
 
 
-def perform_traceback(sa: np.ndarray, k: ty.Optional[int] = 100) -> np.ndarray:
+def traceback_alignments(sa: np.ndarray, k: ty.Optional[int] = 100) -> np.ndarray:
   # Sort scoring matrix values in descending order; Save coordinates in look up table.
   sorted_args = np.argsort(sa.flatten())[::-1]
   coords = [(i, j) for i in range(sa.shape[0]) for j in range(sa.shape[1])]
@@ -316,10 +317,10 @@ def perform_traceback(sa: np.ndarray, k: ty.Optional[int] = 100) -> np.ndarray:
     k = len(tracebacks)
 
   alignments = [] # a collection of index tuples
-  for _ in tracebacks:
+  for trace in tracebacks:
     # check length of routes
-    if len(_[0]) > 1:
-      r = [(i - 1, j - 1) for (i, j) in _[0]]
+    if len(trace[0]) > 1:
+      r = [(i - 1, j - 1) for (i, j) in trace[0]]
       alignments.append(r[:-1])
     if len(alignments) == k:
       break
@@ -365,12 +366,11 @@ def process_alignments(
   top_alignments: np.ndarray, 
   top_scores: np.ndarray, 
   input_vecs: ty.List[np.ndarray],
-  vec_index: dict) -> list:
+  vec_index: dict) -> ty.List[Alignment]:
   
   assert len(input_vecs) == 2, 'Only two sequences can be aligned at a time.'
   v_i = input_vecs[0]
   v_j = input_vecs[1]
-  Alignment = namedtuple('Alignment', ['score', 'X', 'Y'])
   
   results = []
   with new_progress_display(console=stderr) as progress:
@@ -407,6 +407,46 @@ def process_alignments(
       results += [Alignment(top_scores[i], np.array(X), np.array(Y))]
       progress.update(task, advance=1)
   return results
+
+
+def topk_vectors_alignments(
+  V_i: np.ndarray,
+  V_j: np.ndarray,
+  k: int = 10,
+  kernel_weights: ty.Tuple[float, float] = (0.25, 0.25),
+  kernel_size: int = 1,
+  vec_index: dict = None) -> ty.List[Alignment]:
+  w_i, w_j = kernel_weights
+  # Search for sequence alignments for each search v_i \in V_K along some db
+  all_alignments = []
+  alignment_scores = []
+  
+  # Apply sequence kernels of radius len(V_i) to search for similar sequences
+  V_i_kernel = apply_seq_kernel(V_i, kernel_size)
+  V_j_kernel = apply_seq_kernel(V_j, kernel_size)
+  
+  # Calculate cosine similarity between vectors
+  cos_dist = build_cosine_similarity_matrix(V_i_kernel, V_j_kernel)
+  # Calculate scoring matrix for sequence alignment
+  score = build_scoring_matrix(cos_dist, w_i, w_j)
+
+  # Find first k alignments of len > 1
+  alignments = traceback_alignments(score, k=None)
+  for j, al in enumerate(alignments):
+    all_alignments.append(al)
+    alignment_scores.append(score_alignment(al, V_i, V_j_kernel, 1 - (j / len(alignments))))
+  
+  assert len(alignment_scores) == len(all_alignments), "Should be the same, right?"
+  
+  sorted_scores = np.argsort(alignment_scores)[::-1]
+  alignments = np.array(alignments)
+  alignment_scores = np.array(alignment_scores)
+  
+  # Compile top results
+  top_alignments = alignments[sorted_scores[:k].astype(int)]
+  top_scores = alignment_scores[sorted_scores[:k].astype(int)]
+  
+  return process_alignments(top_alignments, top_scores, [V_i, V_j], vec_index)
 
 
 if __name__ == "__main__":
