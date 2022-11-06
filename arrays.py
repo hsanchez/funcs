@@ -362,7 +362,7 @@ def score_alignment(alignment: np.ndarray, seq_x: np.ndarray, seq_y: np.ndarray,
   return score[0]
 
 
-def process_alignments(
+def rank_alignments(
   top_alignments: np.ndarray, 
   top_scores: np.ndarray, 
   input_vecs: ty.List[np.ndarray],
@@ -446,7 +446,7 @@ def topk_vectors_alignments(
   top_alignments = alignments[sorted_scores[:k].astype(int)]
   top_scores = alignment_scores[sorted_scores[:k].astype(int)]
   
-  return process_alignments(top_alignments, top_scores, [V_i, V_j], vec_index)
+  return rank_alignments(top_alignments, top_scores, [V_i, V_j], vec_index)
 
 
 if __name__ == "__main__":
