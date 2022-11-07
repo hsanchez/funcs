@@ -167,6 +167,12 @@ def get_records_in_time_window(
     return tmp_df
 
 
+def datetime_column_to_unix_timestamp(input_df: pd.DataFrame, column: str) -> pd.DataFrame:
+  _check_input_dataframe(input_df)
+  input_df[column] = input_df[column].values.astype(np.int64) // 10 ** 9
+  return input_df
+
+
 def normalize_column(
   input_df: pd.DataFrame,
   is_datetime: bool = False,
