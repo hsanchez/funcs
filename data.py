@@ -171,7 +171,7 @@ def datetime_column_to_timestamp(input_df: pd.DataFrame, column: str) -> pd.Data
   _check_input_dataframe(input_df)
   # Turn datetime values into Unix second time
   # unix sec time; thx to https://stackoverflow.com/questions/54312802/
-  input_df[column] = pd.to_datetime(input_df[column]).astype(np.int64) // 10 ** 9
+  input_df[column] = pd.to_datetime(input_df[column]).view(np.int64) // 10 ** 9
   return input_df
 
 
