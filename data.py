@@ -4,8 +4,8 @@ import itertools
 import pathlib as pl
 import typing as ty
 
+from .arrays import ArrayLike
 from .modules import install as install_package
-
 
 try:
   from sklearn.preprocessing import OrdinalEncoder
@@ -19,12 +19,26 @@ except ImportError:
   install_package('pandas', True)
   import pandas as pd
 
-from collections import Counter
+
+try:
+  import scipy.cluster.hierarchy as shc
+  from scipy.cluster.hierarchy import cophenet
+  from scipy.spatial.distance import euclidean, pdist # computing the distance
+except ImportError:
+  install_package('scipy')
+  import scipy.cluster.hierarchy as shc
+  from scipy.cluster.hierarchy import cophenet
+  from scipy.spatial.distance import euclidean, pdist # computing the distance
+
+from collections import Counter, namedtuple
 
 import numpy as np
 
 from .common import resolve_path
 from .console import new_progress_display, stdout
+
+
+ClusterReport = namedtuple('ClusterReport', ['data', 'cophentic_corr', 'cluster_labels'])
 
 
 def _check_input_dataframe(input_df: pd.DataFrame) -> None:
@@ -371,6 +385,32 @@ def select_columns_subset_from_dataframe(input_df: pd.DataFrame, columns: ty.Lis
         raise LookupError(f"Input columns: {columns} do not exist in the dataframe!")
     
     return result_df
+
+
+def cluster_data(
+  input_df: pd.DataFrame,
+  callback: ty.Callable[[ArrayLike, ty.Any], None] = None,
+  **kwargs) -> ClusterReport:
+  _check_input_dataframe(input_df)
+  
+  Z = shc.linkage(input_df, method='ward')
+  if not Z:
+    raise ValueError("Z is empty!")
+  
+  c, _ = cophenet(Z, pdist(input_df))
+  cophenetic_corr_coeff = round(c, 2)
+  
+  cluster_labels = []
+  flat_option = kwargs.get('flat_option', False)
+  if flat_option:
+    no_clusters = kwargs.get('no_clusters', 5)
+    criterion = kwargs.get('criterion', 'maxclust')
+    cluster_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
+  
+  if callback:
+    callback(Z, **kwargs)
+  
+  return ClusterReport(Z, cophenetic_corr_coeff, cluster_labels)
 
 
 if __name__ == "__main__":
