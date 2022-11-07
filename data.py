@@ -86,10 +86,16 @@ def find_correlated_pairs(input_df: pd.DataFrame, threshold: float = 0.8) -> pd.
   return corr
 
 
-def drop_columns_safely(input_df: pd.DataFrame, columns: list, inplace: bool = False) -> pd.DataFrame:
+def drop_columns_safely(input_df: pd.DataFrame, columns: list, inplace: bool = False) -> ty.Optional[pd.DataFrame]:
   _check_input_dataframe(input_df)
   intersected_columns = list(set(input_df.columns.values).intersection(set(columns)))
   return input_df.drop(intersected_columns, axis=1, inplace=inplace)
+
+
+def drop_indices_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None, inplace: bool = False) -> ty.Optional[pd.DataFrame]:
+  if condition is None:
+    return input_df
+  return input_df.drop(input_df[condition(input_df)].index, inplace=inplace)
 
 
 def drop_records_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None) -> pd.DataFrame:
