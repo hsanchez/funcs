@@ -35,7 +35,7 @@ from collections import Counter, namedtuple
 import numpy as np
 
 from .common import resolve_path
-from .console import new_progress_display, stdout
+from .console import new_progress_display, stdout, stderr
 
 
 ClusterReport = namedtuple('ClusterReport', ['data', 'cophentic_corr', 'cluster_labels'])
@@ -412,6 +412,37 @@ def cluster_data(
   
   return ClusterReport(Z, cophenetic_corr_coeff, cluster_labels)
 
+
+def compute_role_change_intensity(
+  input_df: pd.DataFrame,
+  target_column: str,
+  cluster_centers: ArrayLike,
+  dist_fn: ty.Callable[..., float] = euclidean) -> float:
+  _check_input_dataframe(input_df)
+  RCI = 0.0
+  with new_progress_display(console=stderr) as progress:
+    task = progress.add_task("Computing RCI ...", total=len(input_df))
+    for (_,x),(_,y) in zip(input_df[:-1].iterrows(), input_df[1:].iterrows()):
+      R_cur = y[target_column].astype(np.int64)
+      R_prev = x[target_column].astype(np.int64)
+      RCI += (dist_fn(cluster_centers[R_cur], cluster_centers[R_prev]))
+      progress.update(task, advance=1)
+  return round(np.log10(RCI), 2)
+
+
+def rename_columns_in_dataframe(
+  input_df: pd.DataFrame, 
+  name2name: ty.Dict[str, str], 
+  inplace: bool = True) -> ty.Optional[pd.DataFrame]:
+  """Renames columns in a given dataframe.
+
+  Args:
+    input_df: input dataframe
+    columns: dictionary of columns to rename
+    inplace: whether to rename columns in place or not
+  """
+  _check_input_dataframe(input_df)
+  return input_df.rename(columns=name2name, inplace=inplace)
 
 if __name__ == "__main__":
   pass

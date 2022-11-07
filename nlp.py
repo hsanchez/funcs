@@ -86,5 +86,19 @@ def deduplicate(names: ty.Set[str]) -> ty.Set[str]:
   return set([v for _, v in group_lookup.items()])
 
 
+def split_txt(txt : str, upper: bool = False) -> str:
+  joined_txt = '\n'.join(t for t in txt.split())
+  if upper:
+    return joined_txt.upper()
+  return joined_txt
+
+
+def abbreviate_txt(txt : str, upper: bool = False) -> str:
+  joined_first_chars = ''.join(t[0] for t in txt.split())
+  if upper:
+    return joined_first_chars.upper()
+  return joined_first_chars
+
+
 if __name__ == "__main__":
   pass
