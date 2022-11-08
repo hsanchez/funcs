@@ -17,8 +17,25 @@ except ImportError:
   import scipy.cluster.hierarchy as shc
 
 
-def plot_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+def scree_plot(input_df: pd.DataFrame, eigenvalues: ArrayLike, **kwargs) -> None:
+  plt_module = kwargs.get('pyplot_module', None)
+  if plt_module is None:
+    plt = import_module('matplotlib.pyplot', 'matplotlib')
+  else:
+    plt = plt_module
   
+  figsize = kwargs.get('figsize', (8, 8))
+  plt.figure(figsize=figsize)
+  plt.plot(range(1, input_df.shape[1] + 1), eigenvalues)
+  plt.title('Scree Plot')
+  plt.xlabel('Factors')
+  plt.ylabel('Eigenvalue')
+  plt.axhline(y=1.0, color='r', linestyle='-')
+  plt.grid()
+  plt.show()
+
+
+def plot_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
   pyplot_module = kwargs.get('pyplot_module', None)
   seaborn_module = kwargs.get('seaborn_module', None)
   threshold = kwargs.get('threshold', 0)
