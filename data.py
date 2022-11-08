@@ -3,8 +3,13 @@
 import itertools
 import pathlib as pl
 import typing as ty
+from collections import Counter
+
+import numpy as np
 
 from .arrays import ArrayLike
+from .common import resolve_path
+from .console import new_progress_display, stderr, stdout
 from .modules import install as install_package
 
 try:
@@ -20,32 +25,25 @@ except ImportError:
   import pandas as pd
 
 
-try:
-  import scipy.cluster.hierarchy as shc
-  from scipy.cluster.hierarchy import cophenet
-  from scipy.spatial.distance import euclidean, pdist # computing the distance
-except ImportError:
-  install_package('scipy')
-  import scipy.cluster.hierarchy as shc
-  from scipy.cluster.hierarchy import cophenet
-  from scipy.spatial.distance import euclidean, pdist # computing the distance
-
-from collections import Counter, namedtuple
-
-import numpy as np
-
-from .common import resolve_path
-from .console import new_progress_display, stdout, stderr
-
-
-ClusterReport = namedtuple('ClusterReport', ['data', 'cophentic_corr', 'cluster_labels'])
-
-
 def _check_input_dataframe(input_df: pd.DataFrame) -> None:
   # Empty Dataframe check
   assert input_df.shape[0] > 0 and input_df.shape[1] > 0 , "DataFrame is Empty"
   # duplicate columns check
   assert len(input_df.columns.values)==len(set(input_df.columns.values)) , "DataFrame has duplicate columns"
+
+
+def build_single_row_dataframe(data: dict) -> pd.DataFrame:
+  return pd.DataFrame(data, index=[0])
+
+
+def build_multi_index_dataframe(data: ArrayLike, multi_index_df: pd.DataFrame, index_columns: ArrayLike, columns: ArrayLike) -> pd.DataFrame:
+  _check_input_dataframe(multi_index_df)
+  assert len(index_columns) == len(columns)
+  
+  return pd.DataFrame(
+    data = data, 
+    index=pd.MultiIndex.from_frame(multi_index_df[index_columns]),
+    columns=columns)
 
 
 def get_column_names(input_df: pd.DataFrame, sorted: bool = True) -> ty.List[ty.Any]:
@@ -320,8 +318,10 @@ def build_cooccur_matrix(skipgrams: np.ndarray, activities: ty.List[str], all_ti
   return np.array(cooccur)
 
 
-def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None, separator: str = ',') -> pd.DataFrame:
+def fast_read_and_append(file_path: str, chunksize: int = None, factor: int = 4, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None, separator: str = ',') -> pd.DataFrame:
   import math
+
+  import psutil as ps
 
   # in chunk reading be careful as pandas might infer a columns dtype 
   # as different for diff chunk. As such specifying a dtype while
@@ -330,6 +330,19 @@ def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, 
   # In case of that already happened then 
   #         df_test["publisherId"] = df_test["publisherId"].apply(str)
   resolved_file_path = pl.Path(resolve_path(file_path))
+  
+  if chunksize is None:
+    try:
+      # estimate the available memory for the dataframe chunks
+      chunksize = (
+        ps.virtual_memory().available // (pd.read_csv(
+          str(resolved_file_path), 
+          sep=separator, nrows=1).memory_usage(deep=True).sum() * factor))
+    except Exception:
+      chunksize = 1000
+      stderr.print(f"[yellow]Failed to estimate chunksize for file: {resolved_file_path}")
+      stderr.print(f"[yellow]Set default chunksize to: {chunksize}")
+
   df = pd.DataFrame()
   total_needed_iters = math.ceil(fullsize / chunksize)
   with new_progress_display(console) as progress:
@@ -341,20 +354,22 @@ def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, 
     return df
 
 
-def ordinal_encode(df: pd.DataFrame, cols: ty.List[str], encoding_view: bool = False) -> pd.DataFrame:
+def ordinal_encode(input_df: pd.DataFrame, cols: ty.List[str], encoding_view: bool = False) -> pd.DataFrame:
   """
   Perform ordinal encoding transformation on the specified columns 
   in the dataframe. The expected shape is 2D.
   """
-  df_ord = df.copy()
+  _check_input_dataframe(input_df)
+  df_ord = input_df.copy()
   if not cols or len(cols) == 0:
     cols = df_ord.columns.to_list()
   enc = OrdinalEncoder()
   df_ord[cols] = enc.fit_transform(df_ord[cols])
   if encoding_view:
     # encoding view
-    return df.assign(rating_enc=df_ord)
+    return input_df.assign(rating_enc=df_ord)
   return df_ord
+
 
 def get_pairwise_co_occurrence(array_of_arrays: ty.List[list], items_taken_together: int = 2) -> pd.DataFrame:
   counter = Counter()
@@ -401,49 +416,6 @@ def select_columns_subset_from_dataframe(input_df: pd.DataFrame, columns: ty.Lis
     return result_df
 
 
-def cluster_data(
-  input_df: pd.DataFrame,
-  callback: ty.Callable[[ArrayLike, ty.Any], None] = None,
-  **kwargs) -> ClusterReport:
-  _check_input_dataframe(input_df)
-  
-  Z = shc.linkage(input_df, method='ward')
-  if not Z:
-    raise ValueError("Z is empty!")
-  
-  c, _ = cophenet(Z, pdist(input_df))
-  cophenetic_corr_coeff = round(c, 2)
-  
-  cluster_labels = []
-  flat_option = kwargs.get('flat_option', False)
-  if flat_option:
-    no_clusters = kwargs.get('no_clusters', 5)
-    criterion = kwargs.get('criterion', 'maxclust')
-    cluster_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
-  
-  if callback:
-    callback(Z, **kwargs)
-  
-  return ClusterReport(Z, cophenetic_corr_coeff, cluster_labels)
-
-
-def compute_role_change_intensity(
-  input_df: pd.DataFrame,
-  target_column: str,
-  cluster_centers: ArrayLike,
-  dist_fn: ty.Callable[..., float] = euclidean) -> float:
-  _check_input_dataframe(input_df)
-  RCI = 0.0
-  with new_progress_display(console=stderr) as progress:
-    task = progress.add_task("Computing RCI ...", total=len(input_df))
-    for (_,x),(_,y) in zip(input_df[:-1].iterrows(), input_df[1:].iterrows()):
-      R_cur = y[target_column].astype(np.int64)
-      R_prev = x[target_column].astype(np.int64)
-      RCI += (dist_fn(cluster_centers[R_cur], cluster_centers[R_prev]))
-      progress.update(task, advance=1)
-  return round(np.log10(RCI), 2)
-
-
 def rename_columns_in_dataframe(
   input_df: pd.DataFrame, 
   name2name: ty.Dict[str, str], 
@@ -457,6 +429,7 @@ def rename_columns_in_dataframe(
   """
   _check_input_dataframe(input_df)
   return input_df.rename(columns=name2name, inplace=inplace)
+
 
 if __name__ == "__main__":
   pass
