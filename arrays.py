@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import typing as ty
-from collections import namedtuple
+from dataclasses import dataclass, field
 from numbers import Number
 
 from .console import new_progress_display, stderr
@@ -22,17 +22,20 @@ except ImportError:
   from scipy.spatial.distance import cdist, pdist, squareform
 
 try:
-  from sklearn.cluster import AgglomerativeClustering
   from sklearn.decomposition import PCA
 except ImportError:
   install_package('scikit-learn')
-  from sklearn.cluster import AgglomerativeClustering
   from sklearn.decomposition import PCA
   
 
 NumberLike = ty.Union[Number, ty.Iterable[Number]]
-Alignment = namedtuple('Alignment', ['score', 'X', 'Y'])
 ArrayLike = ty.Union[list, np.ndarray]
+
+@dataclass(frozen=True)
+class Alignment:
+  score: float = 0.0
+  X: ArrayLike = field(default_factory=list)
+  Y: ArrayLike = field(default_factory=list)
 
 
 def sigmoid(x: NumberLike) -> NumberLike:
@@ -407,7 +410,7 @@ def rank_alignments(
           r = each_idx_pair[1]
         else:
           Y.append('GAP')
-      results += [Alignment(top_scores[i], np.array(X), np.array(Y))]
+      results += [Alignment(score=top_scores[i], X=np.array(X), Y=np.array(Y))]
       progress.update(task, advance=1)
   return results
 
@@ -450,35 +453,6 @@ def topk_vectors_alignments(
   top_scores = alignment_scores[sorted_scores[:k].astype(int)]
   
   return rank_alignments(top_alignments, top_scores, [V_i, V_j], vec_index)
-
-
-def intra_cluster_variation(
-  k: int, 
-  data: ArrayLike,
-  callback: ty.Callable[[int, ArrayLike, ty.Any], None] = None, 
-  **kwargs) -> ArrayLike:
-  wss = []
-  for i in range(k):
-    cluster = AgglomerativeClustering(
-      n_clusters=i+1,
-      affinity='euclidean',
-      linkage='average')
-    cluster.fit_predict(data)
-    # cluster index or labels
-    labels = cluster.labels_
-    stderr.stderr.print(f'Cluster {i+1}: {labels}')
-    ds = []
-    for j in range(i+1):
-      cluster_data = data[labels == j]
-      cluster_mean = np.mean(cluster_data, axis=0)
-      ds += [np.linalg.norm(cluster_data - cluster_mean, axis=1)]
-    wss.append(np.sum(ds))
-  
-  if callback:
-    # SEE arrays#simple_plot function
-    callback(k, wss, **kwargs)
-
-  return wss
 
 
 if __name__ == "__main__":
