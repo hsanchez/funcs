@@ -8,9 +8,10 @@ import pandas as pd
 
 from .arrays import ArrayLike
 from .console import new_progress_display, stderr
-from .data import _check_input_dataframe, build_single_row_dataframe, build_multi_index_dataframe
-from .highlights import highlight_eigenvalues
+from .data import (_check_input_dataframe, build_multi_index_dataframe,
+                   build_single_row_dataframe)
 from .modules import install as install_package
+from .plots import plot_correlation_heatmap, scree_plot
 
 try:
   from factor_analyzer import FactorAnalyzer
@@ -95,9 +96,8 @@ def factor_analysis(
     eigenvalues_df = pd.DataFrame(data=ev, index=factor_labels, columns=["Eigenvalue"])
     
     if summary_plot:
-      from .plots import plot_scree_plot
       # scree plot
-      plot_scree_plot(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
+      scree_plot(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
     # eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow')
     
     return eigenvalues_df, report
@@ -122,7 +122,6 @@ def factor_analysis(
       report.factor_scores = factor_scores_df
       
     if summary_plot is not None:
-      from .plots import plot_correlation_heatmap
       # heatmap
       plot_correlation_heatmap(input_df, **kwargs)
     
