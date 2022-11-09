@@ -61,7 +61,7 @@ def factor_analysis(
   metrics_only: bool = False,
   multi_index_df: pd.DataFrame = None,
   index_columns: ArrayLike = None,
-  summary_plot: bool = False,
+  plot_summary: bool = False,
   rotation: ty.Optional[str] = None,
   **kwargs) -> ty.Tuple[pd.DataFrame, FactorAnalysisReport]:
   
@@ -95,7 +95,7 @@ def factor_analysis(
     factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(len(input_df.columns))]
     eigenvalues_df = pd.DataFrame(data=ev, index=factor_labels, columns=["Eigenvalue"])
     
-    if summary_plot:
+    if plot_summary:
       # scree plot
       scree_plot(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
     # eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow')
@@ -121,7 +121,7 @@ def factor_analysis(
         columns=factor_labels)
       report.factor_scores = factor_scores_df
       
-    if summary_plot is not None:
+    if plot_summary is not None:
       # heatmap
       plot_correlation_heatmap(input_df, **kwargs)
     

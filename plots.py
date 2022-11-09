@@ -26,6 +26,7 @@ def scree_plot(input_df: pd.DataFrame, eigenvalues: ArrayLike, **kwargs) -> None
   
   figsize = kwargs.get('figsize', (8, 8))
   plt.figure(figsize=figsize)
+  plt.scatter(range(1, input_df.shape[1] + 1), eigenvalues)
   plt.plot(range(1, input_df.shape[1] + 1), eigenvalues)
   plt.title('Scree Plot')
   plt.xlabel('Factors')
