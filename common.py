@@ -41,8 +41,6 @@ def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = 
   except Exception as e:
     stderr.print(f"Failed to update __builtins__ with {extra_builtins}")
     raise e
-  
-  return __builtins__
 
 
 # thx to https://stackoverflow.com/questions/53581278
