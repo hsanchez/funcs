@@ -18,29 +18,13 @@ OutputType = ty.TypeVar("OutputType")
 PathLike = ty.Union[str, pathlib.Path]
 
 
-def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = None, ipython_val: ty.Any = None) -> None:
-  os.environ.update(os_env)
-  try:
-    if isinstance(__builtins__, dict):
-      if isinstance(extra_builtins, dict):
-        __builtins__.update(extra_builtins)
-      else:
-        __builtins__.update(extra_builtins.__dict__)
-      if ipython_val is not None:
-        is_colab = 'google.colab' in str(ipython_val)
-        os.environ['__IS_COLAB__'] = str(is_colab)
-        # __builtins__.update({'__IS_COLAB__': is_colab})
-    else:
-      if isinstance(extra_builtins, dict):
-        __builtins__.__dict__.update(extra_builtins)
-      else:
-        __builtins__.__dict__.update(extra_builtins.__dict__)
-      if ipython_val is not None:
-        is_colab = 'google.colab' in str(ipython_val)
-        os.environ['__IS_COLAB__'] = str(is_colab)
-  except Exception as e:
-    stderr.print(f"Failed to update __builtins__ with {extra_builtins}")
-    raise e
+def set_default_vars(os_env: dict = None, ipython_val: ty.Any = None) -> None:
+  if os_env is not None:
+    os.environ.update(os_env)
+  
+  if ipython_val is not None:
+    is_colab = 'google.colab' in str(ipython_val)
+    os.environ['__IS_COLAB__'] = str(is_colab)
 
 
 # thx to https://stackoverflow.com/questions/53581278
