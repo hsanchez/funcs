@@ -220,7 +220,7 @@ def describe_timeline(time_frame_skipgrams: np.ndarray, time_periods_in_window_r
   # Count the number of skipgrams in each time frame
   time_frame_skipgrams_counts = Counter(time_frame_skipgrams)
   # Print the distribution
-  print("Distribution of skipgrams in the time frame")
+  stdout.print("Distribution of skipgrams in the time frame")
   
   data_for_dataframe = {}
   for time_frame, skipgrams_count in time_frame_skipgrams_counts.items():
