@@ -44,8 +44,8 @@ def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = 
 
 
 # thx to https://stackoverflow.com/questions/53581278
-def is_run_in_colab(os_env: dict = None) -> bool:
-  if 'google.colab' in os.environ['PATH'] or 'google.colab' in os_env['PATH']:
+def is_run_in_colab() -> bool:
+  if 'google.colab' in os.environ['PATH']:
     return True
   elif '__IS_COLAB__' in os.environ and os.environ['__IS_COLAB__'] == 'True':
     return True
