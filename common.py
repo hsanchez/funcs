@@ -43,6 +43,7 @@ def is_run_in_colab(extra_builtins: ty.Any = None, get_ipython_fn: ty.Callable[.
     return True
   elif hasattr(__builtins__,'__IPYTHON__') or hasattr(extra_builtins,'__IPYTHON__'):
     from IPython import get_ipython
+    print(str(get_ipython()), str(get_ipython_fn() if get_ipython_fn else None))
     return 'google.colab' in str(get_ipython()) or 'google.colab' in str(get_ipython_fn())
   return False
 
