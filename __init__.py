@@ -7,5 +7,6 @@ from .nlp import *
 from .modules import *
 from .plots import *
 from .highlights import *
+from .ml import *
 
 __version__ = "0.0.1"
