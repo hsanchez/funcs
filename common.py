@@ -18,8 +18,7 @@ OutputType = ty.TypeVar("OutputType")
 PathLike = ty.Union[str, pathlib.Path]
 
 
-def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = None, ipython_val: ty.Any = None) -> ty.Union[ModuleType, dict]:
-  global __builtins__
+def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = None, ipython_val: ty.Any = None) -> None:
   os.environ.update(os_env)
   try:
     if isinstance(__builtins__, dict):
@@ -29,7 +28,8 @@ def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = 
         __builtins__.update(extra_builtins.__dict__)
       if ipython_val is not None:
         is_colab = 'google.colab' in str(ipython_val)
-        __builtins__.update({'__IS_COLAB__': is_colab})
+        os.environ['__IS_COLAB__'] = str(is_colab)
+        # __builtins__.update({'__IS_COLAB__': is_colab})
     else:
       if isinstance(extra_builtins, dict):
         __builtins__.__dict__.update(extra_builtins)
@@ -37,7 +37,7 @@ def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = 
         __builtins__.__dict__.update(extra_builtins.__dict__)
       if ipython_val is not None:
         is_colab = 'google.colab' in str(ipython_val)
-        setattr(__builtins__, '__IS_COLAB__', is_colab)
+        os.environ['__IS_COLAB__'] = str(is_colab)
   except Exception as e:
     stderr.print(f"Failed to update __builtins__ with {extra_builtins}")
     raise e
@@ -46,15 +46,14 @@ def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = 
 
 
 # thx to https://stackoverflow.com/questions/53581278
-def is_run_in_colab(extra_builtins: ty.Any = None, get_ipython_fn: ty.Callable[..., ty.Any] = None) -> bool:
-  if 'google.colab' in os.environ['PATH']:
+def is_run_in_colab(os_env: dict = None) -> bool:
+  if 'google.colab' in os.environ['PATH'] or 'google.colab' in os_env['PATH']:
     return True
-  elif hasattr(__builtins__,'__IPYTHON__') or hasattr(extra_builtins,'__IPYTHON__'):
-    if hasattr(__builtins__, '__IS_COLAB__'):
-      return __builtins__.__IS_COLAB__
-    else:
-      from IPython import get_ipython
-      return 'google.colab' in str(get_ipython()) or 'google.colab' in str(get_ipython_fn())
+  elif '__IS_COLAB__' in os.environ and os.environ['__IS_COLAB__'] == 'True':
+    return True
+  elif hasattr(__builtins__,'__IPYTHON__'):
+    from IPython import get_ipython
+    return 'google.colab' in str(get_ipython())
   return False
 
 
