@@ -18,10 +18,20 @@ OutputType = ty.TypeVar("OutputType")
 PathLike = ty.Union[str, pathlib.Path]
 
 
-def set_env_var(os_env: dict, extra_builtins: ModuleType = None) -> None:
+def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = None) -> None:
   os.environ.update(os_env)
   try:
-    __builtins__.__dict__.update(extra_builtins.__dict__)
+    if isinstance(__builtins__, dict):
+      if isinstance(extra_builtins, dict):
+        __builtins__.update(extra_builtins)
+      else:
+        __builtins__.update(extra_builtins.__dict__)
+    else:
+        # setattr(__builtins__, 'g_frame', 'xxx')
+        if isinstance(extra_builtins, dict):
+          __builtins__.__dict__.update(extra_builtins)
+        else:
+          __builtins__.__dict__.update(extra_builtins.__dict__)
   except Exception as e:
     stderr.print(f"Failed to update __builtins__ with {extra_builtins}")
     raise e
