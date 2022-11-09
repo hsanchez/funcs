@@ -82,6 +82,7 @@ RELEVANT_FEATURES = [
 @dataclass(frozen=True)
 class ProcessingResults:
   raw_data: pd.DataFrame = None
+  unnormed_data: pd.DataFrame = None
   metrics: pd.DataFrame = None
 
 
@@ -570,7 +571,7 @@ def process_and_clean_dataframe(
       'BinaryFeatures' : no_binary_feats}
     
     metrics = build_single_row_dataframe(metrics)
-    report = replace(report, raw_data=reduced_data, metrics=metrics)
+    report = replace(report, raw_data=data, unnormed_data=reduced_data, metrics=metrics)
     
     reduced_data_norm = standardize_dataframe(reduced_data, add_gaussian_noise=True)
     
