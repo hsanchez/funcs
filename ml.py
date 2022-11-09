@@ -93,11 +93,12 @@ def factor_analysis(
     ev, _ = fa.get_eigenvalues()
     factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(len(input_df.columns))]
     eigenvalues_df = pd.DataFrame(data=ev, index=factor_labels, columns=["Eigenvalue"])
-    eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow')
     
     if plot_fn is not None:
       # scree plot
-      plot_fn(input_df, ev, **kwargs)
+      plot_fn(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
+    
+    eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow')
     
     return eigenvalues_df, report
   else:
