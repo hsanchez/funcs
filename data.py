@@ -4,7 +4,7 @@ import itertools
 import pathlib as pl
 import typing as ty
 from collections import Counter
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -12,7 +12,6 @@ from .arrays import ArrayLike
 from .common import resolve_path, with_status
 from .console import new_progress_display, stderr, stdout
 from .modules import install as install_package
-from .ml import factor_analysis
 
 try:
   from sklearn.preprocessing import OrdinalEncoder
