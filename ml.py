@@ -74,8 +74,8 @@ def factor_analysis(
   _, kmo_model = calculate_kmo(input_df)
   
   metrics = {
-    'Chi_Square_Value' : chi_square_value, 
-    'P_Value' : p_value, 
+    'Chi_Square_Value' : round(chi_square_value, 2),
+    'P_Value' : p_value,
     'Kaiser_Meyer_Olkin_Score' : round(kmo_model, 2)}
   report.metrics = build_single_row_dataframe(metrics)
   
