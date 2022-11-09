@@ -19,6 +19,7 @@ PathLike = ty.Union[str, pathlib.Path]
 
 
 def set_default_vars(os_env: dict, extra_builtins: ty.Union[ModuleType, dict] = None) -> None:
+  global __builtins__
   os.environ.update(os_env)
   try:
     if isinstance(__builtins__, dict):
