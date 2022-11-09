@@ -9,12 +9,22 @@ import shutil
 import typing as ty
 from itertools import islice
 from timeit import default_timer as timer
+from types import ModuleType
 
-from .console import new_live_display
+from .console import new_live_display, stderr
 
 Decoratee = ty.TypeVar('Decoratee', bound=ty.Callable[..., ty.Any])
 OutputType = ty.TypeVar("OutputType")
 PathLike = ty.Union[str, pathlib.Path]
+
+
+def set_env_var(os_env: dict, extra_builtins: ModuleType = None) -> None:
+  os.environ.update(os_env)
+  try:
+    __builtins__.__dict__.update(extra_builtins.__dict__)
+  except Exception as e:
+    stderr.print(f"Failed to update __builtins__ with {extra_builtins}")
+    raise e
 
 
 # thx to https://stackoverflow.com/questions/53581278
