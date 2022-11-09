@@ -25,11 +25,8 @@ def pink_values(x):
   return np.where(((x >= 0.1) & (x < 0.3)), f"background-color: #ffe6e6;", None)
 
 
-def highlight(input_df: pd.DataFrame, highlighter: ty.Callable, color: str = None) -> Styler:
-  if color is None:
-    return input_df.style.apply(highlighter)
-  else:
-    return input_df.style.apply(highlighter, color=color)
+def highlight(input_df: pd.DataFrame, highlighter: ty.Callable, **kwargs) -> Styler:
+  return input_df.style.apply(highlighter, **kwargs)
 
 
 if __name__ == "__main__":
