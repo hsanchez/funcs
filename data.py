@@ -175,6 +175,7 @@ def datetime_column_to_timestamp(input_df: pd.DataFrame, column: str) -> pd.Data
 
 def normalize_column(
   input_df: pd.DataFrame,
+  column: str,
   is_datetime: bool = False,
   min_norm: int = 0,
   max_norm: int = 1) -> pd.DataFrame:
@@ -184,9 +185,30 @@ def normalize_column(
   _check_input_dataframe(input_df)
   df = input_df.copy()
   if is_datetime:
-    df[col] = pd.to_datetime(df[col]).astype(np.int64)
+    df[column] = pd.to_datetime(df[column]).view(np.int64)
+  else:
+    df[column] = (df[column] - df[column].min()) / (df[column].max() - df[column].min()) * (max_norm - min_norm) + min_norm
+  return df
+
+
+def normalize_columns(
+  input_df: pd.DataFrame,
+  min_norm: int = 0,
+  max_norm: int = 1) -> pd.DataFrame:
+  """
+  Normalize the column values to a range of [min_norm, max_norm]
+  """
+  _check_input_dataframe(input_df)
+  df = input_df.copy()
+  
+  datetime_columns = set(df.select_dtypes(include=[np.datetime64]).columns.to_list())
   for col in df.columns:
-    df[col] = (df[col] - df[col].min()) / (df[col].max() - df[col].min()) * (max_norm - min_norm) + min_norm
+    df = normalize_column(
+      df,
+      col,
+      is_datetime=(col in datetime_columns),
+      min_norm=min_norm,
+      max_norm=max_norm)
   return df
 
 
