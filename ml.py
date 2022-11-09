@@ -82,7 +82,7 @@ def factor_analysis(
     'Chi_Square_Value' : round(chi_square_value, 2),
     'P_Value' : p_value,
     'Kaiser_Meyer_Olkin_Score' : round(kmo_model, 2)}
-  report.metrics = build_single_row_dataframe(metrics)
+  report = replace(report, metrics=build_single_row_dataframe(metrics))
   
   if metrics_only:
     # Return untouched input_df 
