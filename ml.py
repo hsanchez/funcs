@@ -11,7 +11,8 @@ from .console import new_progress_display, stderr
 from .data import (_check_input_dataframe, build_multi_index_dataframe,
                    build_single_row_dataframe)
 from .modules import install as install_package
-from .plots import plot_correlation_heatmap, scree_plot
+from .plots import (plot_column_correlation_heatmap, plot_factors_heatmap,
+                    scree_plot)
 
 try:
   from factor_analyzer import FactorAnalyzer
@@ -62,7 +63,7 @@ def factor_analysis(
   multi_index_df: pd.DataFrame = None,
   index_columns: ArrayLike = None,
   plot_summary: bool = False,
-  rotation: ty.Optional[str] = None,
+  rotation: str = None,
   **kwargs) -> ty.Tuple[pd.DataFrame, FactorAnalysisReport]:
   
   _check_input_dataframe(input_df)
@@ -123,7 +124,11 @@ def factor_analysis(
       
     if plot_summary is not None:
       # heatmap
-      plot_correlation_heatmap(input_df, **kwargs)
+      heatmap_type: str = kwargs.get('heatmap_plot', 'factors_heatmap')
+      if heatmap_type == 'factors_heatmap':
+        plot_factors_heatmap(loadings_df, **kwargs)
+      else:
+        plot_column_correlation_heatmap(loadings_df, **kwargs)
     
     return loadings_df, report
 

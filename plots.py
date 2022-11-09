@@ -34,9 +34,42 @@ def scree_plot(input_df: pd.DataFrame, eigenvalues: ArrayLike, **kwargs) -> None
   plt.axhline(y=1.0, color='r', linestyle='-')
   plt.grid()
   plt.show()
+  
+  
+def plot_factors_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+  plt_module = kwargs.get('pyplot_module', None)
+  seaborn_module = kwargs.get('seaborn_module', None)
+  figsize = kwargs.get('figsize', (10, 8))
+  title = kwargs.get('title', "Factors to Characteristics Heatmap")
+
+  if plt_module is None:
+    plt = import_module('matplotlib.pyplot', 'matplotlib')
+  else:
+    plt = plt_module
+    
+  if seaborn_module is None:
+    sns = import_module('seaborn')
+  else:
+    sns = seaborn_module
+
+  # Generate a custom diverging colormap
+  cmap = sns.diverging_palette(240, 10, as_cmap=True)
+  
+  # get correlation matrix plot for loadings
+  plt.figure(figsize=figsize)
+  plt.title(title)
+  ax = sns.heatmap(
+    input_df, cmap=cmap,
+    vmax=1.0, vmin=-1.0,
+    cbar_kws={"shrink": .8},
+    center=0, square=True, 
+    linewidths=.5, annot=True, fmt='.2f')
+  plt.show()
+
+  return input_df
 
 
-def plot_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+def plot_column_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
   pyplot_module = kwargs.get('pyplot_module', None)
   seaborn_module = kwargs.get('seaborn_module', None)
   threshold = kwargs.get('threshold', 0)
