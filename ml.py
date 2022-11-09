@@ -60,7 +60,7 @@ def factor_analysis(
   metrics_only: bool = False,
   multi_index_df: pd.DataFrame = None,
   index_columns: ArrayLike = None,
-  plot_fn: ty.Callable[..., None] = None,
+  scree_plot: bool = False,
   rotation: ty.Optional[str] = None,
   **kwargs) -> ty.Tuple[pd.DataFrame, FactorAnalysisReport]:
   
@@ -94,11 +94,11 @@ def factor_analysis(
     factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(len(input_df.columns))]
     eigenvalues_df = pd.DataFrame(data=ev, index=factor_labels, columns=["Eigenvalue"])
     
-    if plot_fn is not None:
+    if scree_plot:
+      from .plots import plot_scree_plot
       # scree plot
-      plot_fn(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
-    
-    eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow')
+      plot_scree_plot(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
+    # eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow')
     
     return eigenvalues_df, report
   else:
