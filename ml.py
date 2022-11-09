@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 
 import typing as ty
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
+from pandas.io.formats.style import Styler
 
 from .arrays import ArrayLike
 from .console import new_progress_display, stderr
 from .data import (_check_input_dataframe, build_multi_index_dataframe,
                    build_single_row_dataframe)
+from .highlights import highlight_eigenvalues
 from .modules import install as install_package
 from .plots import (plot_column_correlation_heatmap, plot_factors_heatmap,
                     scree_plot)
@@ -49,10 +51,11 @@ class ClusterReport:
   cluster_labels: ArrayLike = field(default_factory=list)
 
 
-@dataclass
+@dataclass(frozen=True)
 class FactorAnalysisReport:
   metrics: pd.DataFrame = None
   factor_scores: pd.DataFrame = None
+  factors: Styler = None
 
 
 def factor_analysis(
@@ -101,6 +104,8 @@ def factor_analysis(
       scree_plot(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
     # eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow')
     
+    report = replace(report, factors=eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow'))
+    
     return eigenvalues_df, report
   else:
     # Get factor loadings
@@ -120,7 +125,8 @@ def factor_analysis(
         multi_index_df=multi_index_df, 
         index_columns=index_columns,
         columns=factor_labels)
-      report.factor_scores = factor_scores_df
+      # capture the factor scores
+      report = replace(report, factor_scores=factor_scores_df)
       
     if plot_summary is not None:
       # heatmap
