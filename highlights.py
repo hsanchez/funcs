@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
+import typing as ty
+
 import numpy as np
 import pandas as pd
-import typing as ty
+from pandas.io.formats.style import Styler
 
 
 # style cells in pandas tables
@@ -23,11 +25,11 @@ def pink_values(x):
   return np.where(((x >= 0.1) & (x < 0.3)), f"background-color: #ffe6e6;", None)
 
 
-def highlight(input_df: pd.DataFrame, highlighter: ty.Callable, color: str = None) -> None:
+def highlight(input_df: pd.DataFrame, highlighter: ty.Callable, color: str = None) -> Styler:
   if color is None:
-    input_df.style.apply(highlighter)
+    return input_df.style.apply(highlighter)
   else:
-    input_df.style.apply(highlighter, color=color)
+    return input_df.style.apply(highlighter, color=color)
 
 
 if __name__ == "__main__":
