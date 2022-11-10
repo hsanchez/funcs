@@ -8,7 +8,7 @@ import pandas as pd
 from pandas.io.formats.style import Styler
 
 from .arrays import ArrayLike
-from .console import new_progress_display, stderr
+from .console import new_progress_display, stderr, quiet_stderr
 from .data import (_check_input_dataframe, build_multi_index_dataframe,
                    build_single_row_dataframe, get_records_match_condition,
                    normalize_columns)
@@ -18,6 +18,7 @@ from .plots import (find_no_clusters_by_dist_growth_acceleration_plot,
                     find_no_clusters_by_elbow_plot, make_dendrogram,
                     plot_column_correlation_heatmap, plot_factors_heatmap,
                     scree_plot)
+from .common import with_status
 
 try:
   from factor_analyzer import FactorAnalyzer
@@ -73,23 +74,32 @@ def factor_analysis(
   metrics_only: bool = False,
   multi_index_df: pd.DataFrame = None,
   plot_summary: bool = False,
-  rotation: str = None,
+  rotation: str = None, 
+  quiet: bool = False,
   **kwargs) -> ty.Tuple[pd.DataFrame, FactorAnalysisReport]:
   
   _check_input_dataframe(input_df)
   
+  the_console = stderr
+  if quiet:
+    the_console = quiet_stderr
+
   # Metrics
   report = FactorAnalysisReport()
   
-  chi_square_value, p_value = calculate_bartlett_sphericity(input_df)
-  # kmo_all, kmo_model
-  _, kmo_model = calculate_kmo(input_df)
-  
-  metrics = {
-    'Chi_Square_Value' : round(chi_square_value, 2),
-    'P_Value' : p_value,
-    'Kaiser_Meyer_Olkin_Score' : round(kmo_model, 2)}
-  report = replace(report, metrics=build_single_row_dataframe(metrics))
+  @with_status(console=the_console, prefix='Compute metrics')
+  def compute_metrics(df: pd.DataFrame) -> ty.Tuple[pd.DataFrame, dict]:
+    chi_square_value, p_value = calculate_bartlett_sphericity(df)
+    # kmo_all, kmo_model
+    _, kmo_model = calculate_kmo(df)
+    mts = {
+      'Chi_Square_Value' : round(chi_square_value, 2),
+      'P_Value' : p_value,
+      'Kaiser_Meyer_Olkin_Score' : round(kmo_model, 2)}
+    return build_single_row_dataframe(mts), mts
+
+  metrics_df, metrics = compute_metrics(input_df)
+  report = replace(report, metrics=metrics_df)
   
   if metrics_only:
     # Return untouched input_df 
@@ -100,20 +110,56 @@ def factor_analysis(
   fa = FactorAnalyzer(k, rotation=rotation)
   fa.fit(input_df)
   
+  @with_status(console=the_console, prefix='Compute eigenvalues')
+  def compute_eigenvalues(df: pd.DataFrame, mts: dict, evs: ArrayLike, fr: FactorAnalysisReport) -> ty.Tuple[pd.DataFrame, FactorAnalysisReport]:
+    factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(len(df.columns))]
+    evs_df = pd.DataFrame(data=evs, index=factor_labels, columns=["Eigenvalue"])
+    
+    no_factors = len(get_records_match_condition(evs_df, lambda x: x.Eigenvalue > 1.))
+    mts['Number_of_Factors'] = no_factors
+    updated_fr = replace(fr, metrics=build_single_row_dataframe(mts))
+    return evs_df, updated_fr
+  
+  @with_status(console=the_console, prefix='Compute factor loadings')
+  def compute_factor_loadings(
+    f: FactorAnalyzer, n_facts: int,
+    df: pd.DataFrame, idx_df: pd.DataFrame,
+    mts: dict, fr: FactorAnalysisReport,
+    ln_mats) -> ty.Tuple[pd.DataFrame, FactorAnalysisReport]:
+
+    factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(n_facts)]
+    
+    mts['Number_of_Factors'] = n_facts
+    updated_fr = replace(fr, metrics=build_single_row_dataframe(mts))
+    
+    # factors' loadings
+    lns_df = pd.DataFrame(
+      data = ln_mats, 
+      index = df.columns, 
+      columns = factor_labels)
+        
+    if idx_df is not None:
+      fa_transformed = f.fit_transform(df)
+      factor_scores_df = build_multi_index_dataframe(
+        data=fa_transformed, 
+        multi_index_df=idx_df,
+        columns=factor_labels)
+      
+      # Keep factor score between 0 and 1.
+      factor_scores_df = normalize_columns(factor_scores_df)
+      # capture the factor scores
+      updated_fr = replace(updated_fr, factor_scores=factor_scores_df)
+    
+    return lns_df, updated_fr
+  
   if rotation is None:
     # Check Eigenvalues
     ev, _ = fa.get_eigenvalues()
-    factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(len(input_df.columns))]
-    eigenvalues_df = pd.DataFrame(data=ev, index=factor_labels, columns=["Eigenvalue"])
-    
-    no_factors = len(get_records_match_condition(eigenvalues_df, lambda x: x.Eigenvalue > 1.))
-    metrics['Number_of_Factors'] = no_factors
-    report = replace(report, metrics=build_single_row_dataframe(metrics))
+    eigenvalues_df, report = compute_eigenvalues(input_df, metrics, ev, report)    
 
     if plot_summary:
       # scree plot
       scree_plot(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
-    # eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow')
     
     report = replace(report, factors=eigenvalues_df.style.apply(highlight_eigenvalues, color='yellow'))
     
@@ -121,29 +167,8 @@ def factor_analysis(
   else:
     # Get factor loadings
     loadings_matrix = fa.loadings_
-    factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(k)]
-    
-    metrics['Number_of_Factors'] = k
-    report = replace(report, metrics=build_single_row_dataframe(metrics))
-    
-    # factors' loadings
-    loadings_df = pd.DataFrame(
-      data = loadings_matrix, 
-      index = input_df.columns, 
-      columns = factor_labels)
-        
-    if multi_index_df is not None:
-      fa_transformed = fa.fit_transform(input_df)
-      factor_scores_df = build_multi_index_dataframe(
-        data=fa_transformed, 
-        multi_index_df=multi_index_df,
-        columns=factor_labels)
-      
-      # Keep factor score between 0 and 1.
-      factor_scores_df = normalize_columns(factor_scores_df)
-      # capture the factor scores
-      report = replace(report, factor_scores=factor_scores_df)
-      
+    loadings_df, report = compute_factor_loadings(fa, k, input_df, multi_index_df, metrics, report, loadings_matrix)
+
     if plot_summary:
       # heatmap
       heatmap_type: str = kwargs.get('heatmap_plot', 'factors_heatmap')
@@ -155,27 +180,50 @@ def factor_analysis(
     return loadings_df, report
 
 
-def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs) -> ty.Tuple[pd.DataFrame, RolesReport]:  
+def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, quiet: bool = False, **kwargs) -> ty.Tuple[pd.DataFrame, RolesReport]:  
   _check_input_dataframe(input_df)
   
+  the_console = stderr
+  if quiet:
+    the_console = quiet_stderr
+
   cached_Z = kwargs.get('data', None)
-  Z = shc.linkage(input_df, method='ward') if cached_Z is None else cached_Z
-  c, _ = cophenet(Z, pdist(input_df))
-  cophenetic_corr_coeff = round(c, 2)
+  
+  @with_status(console=the_console, prefix='Compute distance matrix')
+  def compute_dist_matrix(df: pd.DataFrame, cached_Z: ArrayLike) -> ArrayLike:
+    if cached_Z is None:
+      Z_val = shc.linkage(df, method='ward')
+    else:
+      Z_val = cached_Z
+    return Z_val
+  
+  Z = compute_dist_matrix(input_df, cached_Z)
   
   if 'data' in kwargs:
     del kwargs['data']
   
-  metrics = {'Cophenetic_Corr_Coeff' : cophenetic_corr_coeff}
-  report = RolesReport(data=Z, metrics=build_single_row_dataframe(metrics))
+  @with_status(console=the_console, prefix='Compute metrics')
+  def compute_metrics(df: pd.DataFrame, d: ArrayLike) -> pd.DataFrame:
+    c, coph_dists = cophenet(d, pdist(df))
+    metrics = {
+      'Cophenetic_Correlation' : round(c, 2),
+      'Cophenetic_Distance' : round(coph_dists.mean(), 2)}
+    return build_single_row_dataframe(metrics)
+
+  metrics_df = compute_metrics(input_df, Z)
+  report = RolesReport(data=Z, metrics=metrics_df)
   
-  role_labels = []
+  @with_status(console=the_console, prefix='Compute clusters')
+  def compute_clusters(k: int, c: str, r: RolesReport, d: ArrayLike) -> RolesReport:
+    role_labels = shc.fcluster(d, k, criterion=c)
+    updated_report = replace(r, roles=role_labels)
+    return updated_report
+
   flat_option = kwargs.get('flat_option', False)
   if flat_option:
     no_clusters = find_no_clusters_by_dist_growth_acceleration_plot(Z, quiet=True)
     criterion = kwargs.get('criterion', 'maxclust')
-    role_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
-    report = replace(report, roles=role_labels)
+    report = compute_clusters(no_clusters, criterion, report, Z)
   
   if 'flat_option' in kwargs:
     del kwargs['flat_option']
@@ -188,13 +236,18 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs)
     
   if len(report.roles) == 0:
     return input_df, report
-
-  # Add role labels to the input_df
-  role_objects = []
-  for r in np.unique(report.roles):
-    role_objects.append(input_df[report.roles == r].mean(0))
   
-  roles_df = pd.concat(role_objects, axis=1, ignore_index=True)
+  @with_status(console=the_console, prefix='Compute roles')
+  def generate_roles_df(df: pd.DataFrame, rr: RolesReport) -> pd.DataFrame:
+    # Add role labels to the df
+    role_objects = []
+    for r in np.unique(rr.roles):
+      role_objects.append(df[rr.roles == r].mean(0))
+    
+    all_roles_df = pd.concat(role_objects, axis=1, ignore_index=True)
+    return all_roles_df
+
+  roles_df = generate_roles_df(input_df, report)
   return roles_df, report
 
 
