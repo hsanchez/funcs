@@ -10,11 +10,12 @@ from pandas.io.formats.style import Styler
 from .arrays import ArrayLike
 from .console import new_progress_display, stderr
 from .data import (_check_input_dataframe, build_multi_index_dataframe,
-                   build_single_row_dataframe, normalize_columns)
+                   build_single_row_dataframe, get_records_match_condition,
+                   normalize_columns)
 from .highlights import highlight_eigenvalues
 from .modules import install as install_package
 from .plots import (plot_column_correlation_heatmap, plot_factors_heatmap,
-                    scree_plot)
+                    scree_plot, make_dendrogram)
 
 try:
   from factor_analyzer import FactorAnalyzer
@@ -98,6 +99,10 @@ def factor_analysis(
     factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(len(input_df.columns))]
     eigenvalues_df = pd.DataFrame(data=ev, index=factor_labels, columns=["Eigenvalue"])
     
+    no_factors = len(get_records_match_condition(eigenvalues_df, lambda x: x.Eigenvalue > 1.))
+    metrics['Number_of_Factors'] = no_factors
+    report = replace(report, metrics=build_single_row_dataframe(metrics))
+
     if plot_summary:
       # scree plot
       scree_plot(input_df.copy(), eigenvalues_df['Eigenvalue'].values.tolist(), **kwargs)
@@ -110,6 +115,9 @@ def factor_analysis(
     # Get factor loadings
     loadings_matrix = fa.loadings_
     factor_labels = ['Factor' + ' ' + str(i + 1) for i in range(k)]
+    
+    metrics['Number_of_Factors'] = k
+    report = replace(report, metrics=build_single_row_dataframe(metrics))
     
     # factors' loadings
     loadings_df = pd.DataFrame(
@@ -142,7 +150,7 @@ def factor_analysis(
 
 def cluster_data(
   input_df: pd.DataFrame,
-  callback: ty.Callable[[ArrayLike, ty.Any], None] = None,
+  plot_summary: bool = True,
   **kwargs) -> ClusterReport:
   
   _check_input_dataframe(input_df)
@@ -161,8 +169,8 @@ def cluster_data(
     criterion = kwargs.get('criterion', 'maxclust')
     cluster_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
   
-  if callback:
-    callback(Z, **kwargs)
+  if plot_summary:
+    make_dendrogram(Z, **kwargs)
   
   return ClusterReport(
     data=Z, 
