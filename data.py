@@ -97,13 +97,12 @@ def build_single_row_dataframe(data: dict) -> pd.DataFrame:
   return pd.DataFrame(data, index=[0])
 
 
-def build_multi_index_dataframe(data: ArrayLike, multi_index_df: pd.DataFrame, index_columns: ArrayLike, columns: ArrayLike) -> pd.DataFrame:
+def build_multi_index_dataframe(data: ArrayLike, multi_index_df: pd.DataFrame, columns: ArrayLike) -> pd.DataFrame:
   _check_input_dataframe(multi_index_df)
-  assert len(index_columns) == len(columns)
   
   return pd.DataFrame(
     data = data, 
-    index=pd.MultiIndex.from_frame(multi_index_df[index_columns]),
+    index=pd.MultiIndex.from_frame(multi_index_df),
     columns=columns)
 
 

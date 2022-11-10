@@ -64,7 +64,6 @@ def factor_analysis(
   k: int = 10,
   metrics_only: bool = False,
   multi_index_df: pd.DataFrame = None,
-  index_columns: ArrayLike = None,
   plot_summary: bool = False,
   rotation: str = None,
   **kwargs) -> ty.Tuple[pd.DataFrame, FactorAnalysisReport]:
@@ -118,12 +117,11 @@ def factor_analysis(
       index = input_df.columns, 
       columns = factor_labels)
     
-    if multi_index_df and index_columns:
+    if multi_index_df:
       fa_transformed = fa.fit_transform(input_df)
       factor_scores_df = build_multi_index_dataframe(
         data=fa_transformed, 
-        multi_index_df=multi_index_df, 
-        index_columns=index_columns,
+        multi_index_df=multi_index_df,
         columns=factor_labels)
       # capture the factor scores
       report = replace(report, factor_scores=factor_scores_df)
