@@ -172,16 +172,13 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs)
   role_labels = []
   flat_option = kwargs.get('flat_option', False)
   if flat_option:
-    no_clusters = kwargs.get('no_clusters', 5)
+    no_clusters = find_no_clusters_by_dist_growth_acceleration_plot(Z, quiet=True)
     criterion = kwargs.get('criterion', 'maxclust')
     role_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
     report = replace(report, roles=role_labels)
   
   if 'flat_option' in kwargs:
     del kwargs['flat_option']
-    
-  if 'no_clusters' in kwargs:
-    del kwargs['no_clusters']
     
   if 'criterion' in kwargs:
     del kwargs['criterion']

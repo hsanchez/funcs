@@ -124,7 +124,7 @@ def find_no_clusters_by_elbow_plot(k, data: ArrayLike, **kwargs) -> None:
     plt.show()
     
 
-def find_no_clusters_by_dist_growth_acceleration_plot(Z_input: ArrayLike, **kwargs) -> ty.Optional[int]:  
+def find_no_clusters_by_dist_growth_acceleration_plot(Z_input: ArrayLike, quiet: bool = False, **kwargs) -> ty.Optional[int]:
   plt_module = kwargs.get('pyplot_module', None)
   if plt_module is None:
     plt = import_module('matplotlib.pyplot', 'matplotlib')
@@ -140,15 +140,15 @@ def find_no_clusters_by_dist_growth_acceleration_plot(Z_input: ArrayLike, **kwar
   plt.figure(figsize=figsize)
   plt.title('Optimal number of cluster')
   plt.xlabel('Number of cluster')
-
-  plt.plot(indices, last_rev, marker = "o", label="distance")
+  if not quiet:
+    plt.plot(indices, last_rev, marker = "o", label="distance")
 
   acceleration = np.diff(last, 2)  # 2nd derivative of the distances
   acceleration_reversed = acceleration[::-1]
-  plt.plot(indices[:-2] + 1, acceleration_reversed, marker = "x", label = "2nd derivative of distance growth")
-
-  plt.legend()
-  plt.show()
+  if not quiet:
+    plt.plot(indices[:-2] + 1, acceleration_reversed, marker = "x", label = "2nd derivative of distance growth")
+    plt.legend()
+    plt.show()
   k = acceleration_reversed.argmax() + 2  # if idx 0 is the max of this we want 2 clusters
   return k
 
