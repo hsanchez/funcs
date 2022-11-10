@@ -154,7 +154,7 @@ def factor_analysis(
     return loadings_df, report
 
 
-def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs) -> RolesReport:  
+def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs) -> ty.Tuple[pd.DataFrame, RolesReport]:  
   _check_input_dataframe(input_df)
   
   Z = shc.linkage(input_df, method='ward')
@@ -178,7 +178,7 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs)
   if plot_summary:
     make_dendrogram(Z, **kwargs)
   
-  return report
+  return input_df, report
 
 
 def compute_role_change_intensity(
