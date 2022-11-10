@@ -158,7 +158,9 @@ def factor_analysis(
 def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs) -> ty.Tuple[pd.DataFrame, RolesReport]:  
   _check_input_dataframe(input_df)
   
-  Z = shc.linkage(input_df, method='ward')
+  Z = kwargs.get('Z', None)
+  if Z is None:
+    Z = shc.linkage(input_df, method='ward')
   c, _ = cophenet(Z, pdist(input_df))
   cophenetic_corr_coeff = round(c, 2)
   
