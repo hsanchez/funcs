@@ -158,9 +158,6 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs)
   _check_input_dataframe(input_df)
   
   Z = shc.linkage(input_df, method='ward')
-  if not Z:
-    raise ValueError("Z is empty!")
-  
   c, _ = cophenet(Z, pdist(input_df))
   cophenetic_corr_coeff = round(c, 2)
   
