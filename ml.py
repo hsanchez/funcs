@@ -252,15 +252,29 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, quiet: bo
 
 
 def compute_role_change_intensity(
-  input_df: pd.DataFrame,
+  sorted_df: pd.DataFrame,
   target_column: str,
-  cluster_centers: ArrayLike,
-  dist_fn: ty.Callable[..., float] = euclidean) -> float:
-  _check_input_dataframe(input_df)
+  roles_df: pd.DataFrame = None,
+  cluster_centers: ArrayLike = None,
+  dist_fn: ty.Callable[..., float] = euclidean,
+  quiet: bool = False) -> float:
+  _check_input_dataframe(sorted_df)
+  
+  the_console = stderr
+  if quiet:
+    the_console = quiet_stderr
+  
+  if cluster_centers is None and roles_df is None:
+    raise ValueError('Either cluster_centers or roles_df must be provided.')
+  
+  if cluster_centers is None:
+    cluster_centers = {i + 1: roles_df[col].values.tolist()
+                       for i, col in enumerate(roles_df.columns)}
+  
   RCI = 0.0
-  with new_progress_display(console=stderr) as progress:
-    task = progress.add_task("Computing RCI ...", total=len(input_df))
-    for (_,x),(_,y) in zip(input_df[:-1].iterrows(), input_df[1:].iterrows()):
+  with new_progress_display(console=the_console) as progress:
+    task = progress.add_task("Computing RCI ...", total=len(sorted_df))
+    for (_,x),(_,y) in zip(sorted_df[:-1].iterrows(), sorted_df[1:].iterrows()):
       R_cur = y[target_column].astype(np.int64)
       R_prev = x[target_column].astype(np.int64)
       RCI += (dist_fn(cluster_centers[R_cur], cluster_centers[R_prev]))
