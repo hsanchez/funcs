@@ -177,6 +177,9 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs)
     role_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
     report = replace(report, roles=role_labels)
   
+  if 'flat_option' in kwargs:
+    del kwargs['flat_option']
+  
   if plot_summary:
     make_dendrogram(Z, **kwargs)
   
