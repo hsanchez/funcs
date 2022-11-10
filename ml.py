@@ -118,7 +118,7 @@ def factor_analysis(
       index = input_df.columns, 
       columns = factor_labels)
         
-    if multi_index_df:
+    if multi_index_df is not None:
       fa_transformed = fa.fit_transform(input_df)
       # factor_scores_df = build_multi_index_dataframe(
       #   data=fa_transformed, 
