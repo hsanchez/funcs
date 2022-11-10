@@ -10,7 +10,7 @@ import numpy as np
 
 from .arrays import ArrayLike
 from .common import resolve_path, with_status
-from .console import new_progress_display, stderr, stdout
+from .console import new_progress_display, quiet_stderr, stderr, stdout
 from .modules import install as install_package
 
 try:
@@ -243,6 +243,7 @@ def normalize_column(
   _check_input_dataframe(input_df)
   df = input_df.copy()
   if is_datetime:
+    # TODO(anyone): check whether we need the 10 ** 9 factor
     df[column] = pd.to_datetime(df[column]).view(np.int64)
   else:
     df[column] = (df[column] - df[column].min()) / (df[column].max() - df[column].min()) * (max_norm - min_norm) + min_norm
@@ -516,12 +517,17 @@ def process_and_clean_dataframe(
   input_df: pd.DataFrame,
   features: ty.List[str] = RELEVANT_FEATURES,
   idx2persuasion: dict = IDX2PERSUASION, 
-  name2name: dict = COLUMN_RENAMES) -> pd.DataFrame:
+  name2name: dict = COLUMN_RENAMES,
+  quiet: bool = False) -> pd.DataFrame:
   _check_input_dataframe(input_df)
+  
+  the_console = stderr
+  if quiet:
+    the_console = quiet_stderr
   
   df = input_df.copy()
   
-  @with_status(console=stderr, prefix="Generating relevant features ...")
+  @with_status(console=the_console, prefix="Generate features")
   def process_relevant_columns(data: pd.DataFrame) -> ty.Tuple[pd.DataFrame, ProcessingResults]:
     report = ProcessingResults()
     # Prior analysis on the LKML confirmed that patch emails
@@ -578,7 +584,7 @@ def process_and_clean_dataframe(
   
   df, report = process_relevant_columns(df)
   
-  @with_status(console=stderr, prefix="Standardizing features ...")
+  @with_status(console=the_console, prefix="Standardize features")
   def standardize_with_noise(data: pd.DataFrame) -> pd.DataFrame:
     return standardize_dataframe(data, add_gaussian_noise=True)
   
