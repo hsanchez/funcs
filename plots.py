@@ -209,8 +209,8 @@ def radar_plot(input_df: pd.DataFrame, **kwargs) -> None:
     
     ax.set_ylim(0, 1.)
     ax.set_yticks([])
-    ax.xaxis.grid(linewidth=2)
-    ax.yaxis.grid(linewidth=2)
+    ax.xaxis.grid(linewidth=1)
+    ax.yaxis.grid(linewidth=1)
     
     # Draw one axe per variable + add labels labels yet
     plt.xticks(angles[:-1], categories, size=8)
