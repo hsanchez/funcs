@@ -56,7 +56,6 @@ class FactorAnalysisReport:
   metrics: pd.DataFrame = None
   factor_scores: pd.DataFrame = None
   factors: Styler = None
-  factor_loadings: ArrayLike = field(default_factory=list)
 
 
 def factor_analysis(
@@ -120,12 +119,12 @@ def factor_analysis(
         
     if multi_index_df is not None:
       fa_transformed = fa.fit_transform(input_df)
-      # factor_scores_df = build_multi_index_dataframe(
-      #   data=fa_transformed, 
-      #   multi_index_df=multi_index_df,
-      #   columns=factor_labels)
-      # # capture the factor scores
-      report = replace(report, factor_loadings=fa_transformed, factor_scores=None)
+      factor_scores_df = build_multi_index_dataframe(
+        data=fa_transformed, 
+        multi_index_df=multi_index_df,
+        columns=factor_labels)
+      # capture the factor scores
+      report = replace(report, factor_scores=factor_scores_df)
       
     if plot_summary is not None:
       # heatmap
