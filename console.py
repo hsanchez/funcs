@@ -22,6 +22,7 @@ except ImportError:
 
 stdout = Console()
 stderr = Console(file=sys.stderr)
+quiet_stderr = Console(file=sys.stderr, quiet=True)
 
 
 def new_live_display(console: Console, screen: bool = False, auto_refresh: bool = False) -> Live:
