@@ -56,6 +56,7 @@ class FactorAnalysisReport:
   metrics: pd.DataFrame = None
   factor_scores: pd.DataFrame = None
   factors: Styler = None
+  factor_loadings: pd.DataFrame = None
 
 
 def factor_analysis(
@@ -116,6 +117,8 @@ def factor_analysis(
       data = loadings_matrix, 
       index = input_df.columns, 
       columns = factor_labels)
+    
+    report = replace(report, factor_loadings=loadings_df)
     
     if multi_index_df:
       fa_transformed = fa.fit_transform(input_df)
