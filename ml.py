@@ -54,7 +54,6 @@ class RolesReport:
   roles: ArrayLike = field(default_factory=list)
   
   def plot_parameters(self, **kwargs) -> None:
-    find_no_clusters_by_elbow_plot(len(self.roles), self.data, **kwargs)
     find_no_clusters_by_dist_growth_acceleration_plot(self.data, **kwargs)
 
 
