@@ -179,11 +179,26 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs)
   
   if 'flat_option' in kwargs:
     del kwargs['flat_option']
+    
+  if 'no_clusters' in kwargs:
+    del kwargs['no_clusters']
+    
+  if 'criterion' in kwargs:
+    del kwargs['criterion']
   
   if plot_summary:
     make_dendrogram(Z, **kwargs)
+    
+  if len(report.roles) == 0:
+    return input_df, report
+
+  # Add role labels to the input_df
+  role_objects = []
+  for r in np.unique(report.roles):
+    role_objects.append(input_df[report.roles == r].mean(0))
   
-  return input_df, report
+  roles_df = pd.concat(role_objects, axis=1, ignore_index=True)
+  return roles_df, report
 
 
 def compute_role_change_intensity(
