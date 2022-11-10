@@ -148,7 +148,7 @@ def factor_analysis(
     return loadings_df, report
 
 
-def cluster_data(
+def roles_discovery(
   input_df: pd.DataFrame,
   plot_summary: bool = True,
   **kwargs) -> ClusterReport:
