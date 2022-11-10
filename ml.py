@@ -163,6 +163,9 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs)
   c, _ = cophenet(Z, pdist(input_df))
   cophenetic_corr_coeff = round(c, 2)
   
+  if 'data' in kwargs:
+    del kwargs['data']
+  
   metrics = {'Cophenetic_Corr_Coeff' : cophenetic_corr_coeff}
   report = RolesReport(data=Z, metrics=build_single_row_dataframe(metrics))
   
