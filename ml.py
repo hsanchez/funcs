@@ -54,7 +54,9 @@ class RolesReport:
   roles: ArrayLike = field(default_factory=list)
   
   def plot_parameters(self, **kwargs) -> None:
-    find_no_clusters_by_dist_growth_acceleration_plot(self.data, **kwargs)
+    k = find_no_clusters_by_dist_growth_acceleration_plot(self.data, **kwargs)
+    output = kwargs.get('output', stderr)
+    output.print(f"Number of clusters: {k}")
 
 
 @dataclass(frozen=True)
