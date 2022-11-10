@@ -94,7 +94,7 @@ def plot_column_correlation_heatmap(input_df: pd.DataFrame, **kwargs) -> pd.Data
   mask[np.triu_indices_from(mask)] = True
 
   # Set up the matplotlib figure
-  f, ax = pyplot_module.subplots(figsize=figsize)
+  f, ax = plt.subplots(figsize=figsize)
 
   # Generate a custom diverging colormap
   cmap = sns.diverging_palette(240, 10, as_cmap=True)
