@@ -14,8 +14,10 @@ from .data import (_check_input_dataframe, build_multi_index_dataframe,
                    normalize_columns)
 from .highlights import highlight_eigenvalues
 from .modules import install as install_package
-from .plots import (plot_column_correlation_heatmap, plot_factors_heatmap,
-                    scree_plot, make_dendrogram)
+from .plots import (find_no_clusters_by_dist_growth_acceleration_plot,
+                    find_no_clusters_by_elbow_plot, make_dendrogram,
+                    plot_column_correlation_heatmap, plot_factors_heatmap,
+                    scree_plot)
 
 try:
   from factor_analyzer import FactorAnalyzer
@@ -46,10 +48,14 @@ except ImportError:
 
 
 @dataclass(frozen=True)
-class ClusterReport:
+class RolesReport:
   data: ArrayLike = field(default_factory=list)
-  cophentic_corr: float = 0.0
-  cluster_labels: ArrayLike = field(default_factory=list)
+  metrics: pd.DataFrame = None
+  roles: ArrayLike = field(default_factory=list)
+  
+  def plot_parameters(self, **kwargs) -> None:
+    find_no_clusters_by_elbow_plot(len(self.roles), self.data, **kwargs)
+    find_no_clusters_by_dist_growth_acceleration_plot(self.data, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -148,11 +154,7 @@ def factor_analysis(
     return loadings_df, report
 
 
-def roles_discovery(
-  input_df: pd.DataFrame,
-  plot_summary: bool = True,
-  **kwargs) -> ClusterReport:
-  
+def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, **kwargs) -> RolesReport:  
   _check_input_dataframe(input_df)
   
   Z = shc.linkage(input_df, method='ward')
@@ -162,20 +164,21 @@ def roles_discovery(
   c, _ = cophenet(Z, pdist(input_df))
   cophenetic_corr_coeff = round(c, 2)
   
-  cluster_labels = []
+  metrics = {'Cophenetic_Corr_Coeff' : cophenetic_corr_coeff}
+  report = RolesReport(data=Z, metrics=build_single_row_dataframe(metrics))
+  
+  role_labels = []
   flat_option = kwargs.get('flat_option', False)
   if flat_option:
     no_clusters = kwargs.get('no_clusters', 5)
     criterion = kwargs.get('criterion', 'maxclust')
-    cluster_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
+    role_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
+    report = replace(report, roles=role_labels)
   
   if plot_summary:
     make_dendrogram(Z, **kwargs)
   
-  return ClusterReport(
-    data=Z, 
-    cophentic_corr=cophenetic_corr_coeff, 
-    cluster_labels=cluster_labels)
+  return report
 
 
 def compute_role_change_intensity(
@@ -198,7 +201,7 @@ def compute_role_change_intensity(
 def intra_cluster_variation(
   k: int, 
   data: ArrayLike,
-  callback: ty.Callable[[int, ArrayLike, ty.Any], None] = None, 
+  plot_summary: bool = True,
   **kwargs) -> ArrayLike:
   wss = []
   for i in range(k):
@@ -217,9 +220,8 @@ def intra_cluster_variation(
       ds += [np.linalg.norm(cluster_data - cluster_mean, axis=1)]
     wss.append(np.sum(ds))
   
-  if callback:
-    # SEE arrays#simple_plot function
-    callback(k, wss, **kwargs)
+  if plot_summary:
+    find_no_clusters_by_elbow_plot(k, wss, **kwargs)
 
   return wss
 
