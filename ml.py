@@ -213,7 +213,7 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, quiet: bo
   metrics_df = compute_metrics(input_df, Z)
   report = RolesReport(data=Z, metrics=metrics_df)
   
-  @with_status(console=the_console, prefix='Compute clusters')
+  @with_status(console=the_console, prefix='Compute roles')
   def compute_clusters(k: int, c: str, r: RolesReport, d: ArrayLike) -> RolesReport:
     role_labels = shc.fcluster(d, k, criterion=c)
     updated_report = replace(r, roles=role_labels)
@@ -237,7 +237,7 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, quiet: bo
   if len(report.roles) == 0:
     return input_df, report
   
-  @with_status(console=the_console, prefix='Compute roles')
+  @with_status(console=the_console, prefix='Process roles')
   def generate_roles_df(df: pd.DataFrame, rr: RolesReport) -> pd.DataFrame:
     # Add role labels to the df
     role_objects = []
