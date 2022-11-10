@@ -10,7 +10,7 @@ from pandas.io.formats.style import Styler
 from .arrays import ArrayLike
 from .console import new_progress_display, stderr
 from .data import (_check_input_dataframe, build_multi_index_dataframe,
-                   build_single_row_dataframe)
+                   build_single_row_dataframe, normalize_columns)
 from .highlights import highlight_eigenvalues
 from .modules import install as install_package
 from .plots import (plot_column_correlation_heatmap, plot_factors_heatmap,
@@ -123,10 +123,13 @@ def factor_analysis(
         data=fa_transformed, 
         multi_index_df=multi_index_df,
         columns=factor_labels)
+      
+      # Keep factor score between 0 and 1.
+      factor_scores_df = normalize_columns(factor_scores_df)
       # capture the factor scores
       report = replace(report, factor_scores=factor_scores_df)
       
-    if plot_summary is not None:
+    if plot_summary:
       # heatmap
       heatmap_type: str = kwargs.get('heatmap_plot', 'factors_heatmap')
       if heatmap_type == 'factors_heatmap':
