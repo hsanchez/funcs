@@ -17,6 +17,16 @@ except ImportError:
   import scipy.cluster.hierarchy as shc
 
 
+def plot_RCI_distribution(input_df: pd.DataFrame, **kwargs) -> None:
+  seaborn_module = kwargs.get('seaborn_module', None)
+  if seaborn_module is None:
+    sns = import_module('seaborn')
+  else:
+    sns = seaborn_module
+  
+  sns.histplot(input_df, **kwargs)
+
+
 def scree_plot(input_df: pd.DataFrame, eigenvalues: ArrayLike, **kwargs) -> None:
   plt_module = kwargs.get('pyplot_module', None)
   if plt_module is None:

@@ -8,7 +8,8 @@ import pandas as pd
 from pandas.io.formats.style import Styler
 
 from .arrays import ArrayLike
-from .console import new_progress_display, stderr, quiet_stderr
+from .common import with_status
+from .console import quiet_stderr, stderr
 from .data import (_check_input_dataframe, build_multi_index_dataframe,
                    build_single_row_dataframe, get_records_match_condition,
                    normalize_columns)
@@ -17,8 +18,7 @@ from .modules import install as install_package
 from .plots import (find_no_clusters_by_dist_growth_acceleration_plot,
                     find_no_clusters_by_elbow_plot, make_dendrogram,
                     plot_column_correlation_heatmap, plot_factors_heatmap,
-                    scree_plot)
-from .common import with_status
+                    plot_RCI_distribution, scree_plot)
 
 try:
   from factor_analyzer import FactorAnalyzer
@@ -257,8 +257,10 @@ def compute_role_change_intensity(
   roles_df: pd.DataFrame,
   roles: ArrayLike,
   single_rci: bool = True,
+  plot_summary: bool = True,
   dist_fn: ty.Callable[..., float] = euclidean,
-  quiet: bool = False) -> ty.Union[float, pd.DataFrame]:
+  quiet: bool = False, 
+  **kwargs) -> ty.Union[float, pd.DataFrame]:
   _check_input_dataframe(input_df)
   
   the_console = stderr
@@ -308,7 +310,10 @@ def compute_role_change_intensity(
     rci_vals[rci_vals == -np.inf] = 0
     return pd.DataFrame(data=rci_vals, index=role_names, columns=["RCI"])
   
-  return compute_RCI_for_each_sender(sorted_df, target_column, cluster_centers)
+  RCI_df = compute_RCI_for_each_sender(sorted_df, target_column, cluster_centers)
+  if plot_summary:
+    plot_RCI_distribution(RCI_df, **kwargs)
+  return RCI_df
 
 
 def intra_cluster_variation(
