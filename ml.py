@@ -256,8 +256,9 @@ def compute_role_change_intensity(
   target_column: str,
   roles_df: pd.DataFrame = None,
   cluster_centers: ArrayLike = None,
+  single_rci: bool = True,
   dist_fn: ty.Callable[..., float] = euclidean,
-  quiet: bool = False) -> float:
+  quiet: bool = False) -> ty.Union[float, pd.DataFrame]:
   _check_input_dataframe(sorted_df)
   
   the_console = stderr
@@ -270,16 +271,32 @@ def compute_role_change_intensity(
   if cluster_centers is None:
     cluster_centers = {i + 1: roles_df[col].values.tolist()
                        for i, col in enumerate(roles_df.columns)}
+
+  def compute_RCI(df: pd.DataFrame, tc: str, cc: ArrayLike) -> float:
+    RCI = 0.0
+    with new_progress_display(console=the_console) as progress:
+      task = progress.add_task("Computing RCI ...", total=len(df))
+      for (_,x),(_,y) in zip(df[:-1].iterrows(), df[1:].iterrows()):
+        R_cur = y[tc].astype(np.int64)
+        R_prev = x[tc].astype(np.int64)
+        RCI += (dist_fn(cc[R_cur], cc[R_prev]))
+        progress.update(task, advance=1)
   
-  RCI = 0.0
-  with new_progress_display(console=the_console) as progress:
-    task = progress.add_task("Computing RCI ...", total=len(sorted_df))
-    for (_,x),(_,y) in zip(sorted_df[:-1].iterrows(), sorted_df[1:].iterrows()):
-      R_cur = y[target_column].astype(np.int64)
-      R_prev = x[target_column].astype(np.int64)
-      RCI += (dist_fn(cluster_centers[R_cur], cluster_centers[R_prev]))
-      progress.update(task, advance=1)
-  return round(np.log10(RCI), 2)
+    return round(np.log10(RCI), 2)
+  if single_rci:
+    return compute_RCI(sorted_df, target_column, cluster_centers)
+  
+  # Otherwise, compute RCI for each sender_id
+  @with_status(console=the_console, prefix='Compute RCI')
+  def compute_RCI_for_each_sender(df: pd.DataFrame) -> pd.DataFrame:
+    grouped_samples = sorted_df.groupby('sender_id')
+    role_changes_out = [(name, compute_RCI(group)) for name, group in grouped_samples]
+    role_names = [n for (n, _) in role_changes_out]
+    rci_vals = np.array([s for (_, s) in role_changes_out])
+    rci_vals[rci_vals == -np.inf] = 0
+    return pd.DataFrame(data=rci_vals, index=role_names, columns=["RCI"])
+  
+  return compute_RCI_for_each_sender(sorted_df)
 
 
 def intra_cluster_variation(
