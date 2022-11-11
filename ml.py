@@ -252,25 +252,36 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, quiet: bo
 
 
 def compute_role_change_intensity(
-  sorted_df: pd.DataFrame,
+  input_df: pd.DataFrame,
   target_column: str,
-  roles_df: pd.DataFrame = None,
-  cluster_centers: ArrayLike = None,
+  roles_df: pd.DataFrame,
+  roles: ArrayLike,
   single_rci: bool = True,
   dist_fn: ty.Callable[..., float] = euclidean,
   quiet: bool = False) -> ty.Union[float, pd.DataFrame]:
-  _check_input_dataframe(sorted_df)
+  _check_input_dataframe(input_df)
   
   the_console = stderr
   if quiet:
     the_console = quiet_stderr
   
-  if cluster_centers is None and roles_df is None:
-    raise ValueError('Either cluster_centers or roles_df must be provided.')
+  @with_status(console=the_console, prefix='Process samples')
+  def process_dataframe(df: pd.DataFrame, tc: str, rls: ArrayLike) -> pd.DataFrame:
+    input_roles = df.copy()
+    input_roles[tc] = rls
+    
+    roles_index = input_roles.reset_index()
+    roles_index = input_roles.sort_values(by = 'sent_time')
+    start_period = roles_index.sent_time.min()
+    end_period = roles_index.sent_time.max()
+    mask = lambda x: (x.sent_time > start_period) & (x.sent_time <= end_period)
+    roles_index_sample = roles_index.loc[mask].dropna()
+    roles_index_sample = roles_index_sample.set_index(['sent_time'])
+    return roles_index_sample
   
-  if cluster_centers is None:
-    cluster_centers = {i + 1: roles_df[col].values.tolist()
-                       for i, col in enumerate(roles_df.columns)}
+  sorted_df = process_dataframe(input_df, target_column, roles)
+  cluster_centers = {i + 1: roles_df[col].values.tolist()
+                     for i, col in enumerate(roles_df.columns)}
 
   def compute_RCI(df: pd.DataFrame, tc: str, cc: ArrayLike) -> float:
     RCI = 0.0
@@ -283,20 +294,21 @@ def compute_role_change_intensity(
         progress.update(task, advance=1)
   
     return round(np.log10(RCI), 2)
+  
   if single_rci:
     return compute_RCI(sorted_df, target_column, cluster_centers)
   
   # Otherwise, compute RCI for each sender_id
   @with_status(console=the_console, prefix='Compute RCI')
-  def compute_RCI_for_each_sender(df: pd.DataFrame) -> pd.DataFrame:
-    grouped_samples = sorted_df.groupby('sender_id')
-    role_changes_out = [(name, compute_RCI(group)) for name, group in grouped_samples]
+  def compute_RCI_for_each_sender(df: pd.DataFrame, tc: str, cc: ArrayLike) -> pd.DataFrame:
+    grouped_samples = df.groupby('sender_id')
+    role_changes_out = [(name, compute_RCI(group, tc, cc)) for name, group in grouped_samples]
     role_names = [n for (n, _) in role_changes_out]
     rci_vals = np.array([s for (_, s) in role_changes_out])
     rci_vals[rci_vals == -np.inf] = 0
     return pd.DataFrame(data=rci_vals, index=role_names, columns=["RCI"])
   
-  return compute_RCI_for_each_sender(sorted_df)
+  return compute_RCI_for_each_sender(sorted_df, target_column, cluster_centers)
 
 
 def intra_cluster_variation(
