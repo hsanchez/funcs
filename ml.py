@@ -56,7 +56,7 @@ class RolesReport:
   # redundancy to ensure we can plot it
   roles_data: pd.DataFrame = None
   
-  def plot_components(self, output=None, **kwargs) -> None:
+  def plot_parameters(self, output=None, **kwargs) -> None:
     if output is None:
       output = stderr
     if len(self.data) == 0:
@@ -65,7 +65,8 @@ class RolesReport:
 
     k = find_no_clusters_by_dist_growth_acceleration_plot(self.data, **kwargs)
     output.print(f"Number of clusters: {k}")
-
+  
+  def plot_components(self) -> None:
     if self.roles_data is not None:
       radar_plot(self.roles_data)
 
