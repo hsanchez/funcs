@@ -271,7 +271,7 @@ def compute_role_change_intensity(
     input_roles[tc] = rls
     
     roles_index = input_roles.reset_index()
-    roles_index = input_roles.sort_values(by = 'sent_time')
+    roles_index = roles_index.sort_values(by = 'sent_time')
     start_period = roles_index.sent_time.min()
     end_period = roles_index.sent_time.max()
     mask = lambda x: (x.sent_time > start_period) & (x.sent_time <= end_period)
