@@ -4,8 +4,9 @@ import typing as ty
 
 import numpy as np
 
+from .arrays import ArrayLike, multidimensional_shifting
+from .console import new_progress_display, quiet_stderr, stderr
 from .modules import install as install_package
-from .arrays import multidimensional_shifting, ArrayLike
 
 try:
   import torch
@@ -62,6 +63,40 @@ def generate_random_train_test_data(
   
   return training, test
 
+
+def get_train_test_data_per_period(
+  sliced_skipgrams: ArrayLike, 
+  time_slices: ArrayLike,
+  txt2dict: dict,
+  progress_bar: bool = False) -> ArrayLike:
+  
+  the_console = quiet_stderr
+  if progress_bar:
+    the_console = stderr
+  
+  train_test_data = []
+  with new_progress_display(the_console) as progress:
+    task = progress.add_task("Collecting data in time slices ...", total=len(sliced_skipgrams))
+    for time_slice in time_slices:
+      train_, test_ = generate_random_train_test_data(sliced_skipgrams[time_slice], txt2dict)
+      train_test_data.append((train_, test_))
+      progress.update(task, advance=1)
+  
+  return np.array(train_test_data)
+
+
+
+def get_annotated_coordinates_from_model(activities: ArrayLike, trained_model: ty.Any, act2abbr: dict) -> tuple:
+  """Get coordinates from tensor."""
+  for activity in activities:
+    embedding = trained_model.get_embedding(activity)
+    if torch.cuda.is_available():
+      x = embedding = embedding.detach().cpu().numpy()
+      y = embedding = embedding.detach().cpu().numpy()
+    else:
+      x = embedding.detach().data.numpy()
+      y = embedding.detach().data.numpy()
+    yield act2abbr[activity], x, y
 
 
 if __name__ == "__main__":
