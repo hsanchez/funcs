@@ -12,6 +12,7 @@ from .arrays import ArrayLike
 from .common import resolve_path, with_status
 from .console import new_progress_display, quiet_stderr, stderr, stdout
 from .modules import install as install_package
+from .nlp import generate_skipgrams
 
 try:
   from sklearn.preprocessing import OrdinalEncoder
@@ -287,7 +288,12 @@ def describe_timeline(time_frame_skipgrams: np.ndarray, time_periods_in_window_r
     time_period = time_periods_in_window_range[time_frame]
     stdout.print(f"Time period {time_period}: {skipgrams_count} skipgrams")
 
-  return pd.DataFrame(data_for_dataframe, index=[0])
+  skipgrams_df = pd.DataFrame(data_for_dataframe, index=[0])
+  skipgrams_df.plot.bar(
+    xlabel="Week of Year",
+    ylabel="No. of skipgrams",
+    figsize=(20, 10), rot=0, )
+  return skipgrams_df
 
 
 def get_unique_column_values(input_df: pd.DataFrame, target_column: str) -> np.ndarray:
@@ -295,49 +301,21 @@ def get_unique_column_values(input_df: pd.DataFrame, target_column: str) -> np.n
   return input_df[target_column].unique()
 
 
-def generate_skipgrams(
-  input_df: pd.DataFrame, 
-  vocab: ty.Iterable, 
-  window_date_offset: pd.DateOffset,
-  target_col: str, 
-  datetime_column: str = 'sent_time') -> ty.List[tuple]:
-  
-  _check_input_dataframe(input_df)
-  vocab_size = sum(1 for _ in vocab)
-  skipgrams = []
-  with new_progress_display(console = stdout) as progress:
-    task = progress.add_task("Generating skipgrams ...", total=vocab_size)
-    for w in vocab:
-      # collect all records from the ACTIVITY_DF where triplet_one == a.
-      # note that an activity with the triple_one format is an activity relabeled 
-      # with **three** elements: 
-      #   original activity name + project name + email thread topology 
-      res_a = input_df.loc[input_df[target_col] == w]
-      # iterate over all res_a records and collect all records 
-      # that are within a time window
-      for _, row_a in res_a.iterrows():
-        s_time = row_a[datetime_column] - window_date_offset
-        e_time = row_a[datetime_column] + window_date_offset
-        
-        # get all members in time window
-        res_row_a = get_records_in_time_window(input_df, datetime_column, s_time, e_time)
-        
-        w_skipgrams = [(w, act_x) for act_x in res_row_a[target_col].tolist()]
-        skipgrams.extend(w_skipgrams)
-        
-      progress.update(task, advance=1)
-  return skipgrams
-
-
 def timeline_slicing(
   timeline: pd.DataFrame,
   target_column: str,
   datetime_col: str = 'sent_time',
   window_size: int = 4,
-  by_period: str = 'week') -> ty.Tuple[np.ndarray, np.ndarray]:
+  by_period: str = 'week',
+  progress_bar: bool = False
+  ) -> ty.Tuple[np.ndarray, np.ndarray]:
   
   if by_period not in ['year', 'week', 'day']:
     raise ValueError(f"Invalid value for by_period: {by_period}")
+  
+  the_console = stderr
+  if progress_bar:
+    the_console = quiet_stderr
 
   def get_time_period_series(df: pd.DataFrame, bp: str, col: str) -> ty.Any:
     if bp == 'year':
@@ -348,9 +326,7 @@ def timeline_slicing(
       return df[col].dt.isocalendar().day
     else:
       raise ValueError(f"Invalid value for time_period: {bp}")
-    
 
-  data = []
   # window size
   ws = pd.DateOffset(hours=window_size)
   
@@ -361,18 +337,24 @@ def timeline_slicing(
   if by_period == 'year':
     ws = pd.DateOffset(years=window_size)
   
-  tp_in_window_range = range(start_period, end_period)  
-  for time_period in tp_in_window_range:
-    # 1. get data-frame partition
-    tp_df = timeline.loc[by_period_series == time_period]
-    # 2. get unique activities list for activity column
-    tp_unique_vals = get_unique_column_values(input_df=tp_df, target_column=target_column)
-    # 3. get skipgrams for the current time period
-    skipgrams_by_tp = generate_skipgrams(
-      tp_df, tp_unique_vals, ws,
-      target_col=target_column, datetime_column=datetime_col)
-    # 4. add the list to final_data, [[], [], []]
-    data.append(skipgrams_by_tp)
+  data = []
+  tp_in_window_range = range(start_period, end_period)
+  n_periods = len(list(tp_in_window_range))
+  with new_progress_display(the_console) as progress:
+    task = progress.add_task(f"Partitioning {n_periods} periods ...", total=n_periods)
+    for time_period in tp_in_window_range:
+      # 1. get data-frame partition
+      tp_df = timeline.loc[by_period_series == time_period]
+      # 2. get unique activities list for activity column
+      tp_unique_vals = get_unique_column_values(input_df=tp_df, target_column=target_column)
+      # 3. get skipgrams for the current time period
+      skipgrams_by_tp = generate_skipgrams(
+        tp_df, tp_unique_vals, ws,
+        target_col=target_column, datetime_column=datetime_col,
+        progress_bar=False)
+      # 4. add the list to final_data, [[], [], []]
+      data.append(skipgrams_by_tp)
+      progress.update(task, advance=1)
   return np.array(data, dtype=object), np.array(list(tp_in_window_range))
 
 
@@ -399,10 +381,21 @@ def build_cooccur_matrix(skipgrams: np.ndarray, activities: ty.List[str], all_ti
   return np.array(cooccur)
 
 
-def fast_read_and_append(file_path: str, chunksize: int = None, factor: int = 4, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None, separator: str = ',') -> pd.DataFrame:
+def fast_read_and_append(
+  file_path: str, 
+  chunksize: int = None, 
+  factor: int = 4, 
+  fullsize: float = 1e9, 
+  dtype: ty.Any = None, 
+  progress_bar: bool = False, 
+  separator: str = ','
+  ) -> pd.DataFrame:
   import math
-
   import psutil as ps
+  
+  the_console = stderr
+  if progress_bar:
+    the_console = quiet_stderr
 
   # in chunk reading be careful as pandas might infer a columns dtype 
   # as different for diff chunk. As such specifying a dtype while
@@ -426,7 +419,7 @@ def fast_read_and_append(file_path: str, chunksize: int = None, factor: int = 4,
 
   df = pd.DataFrame()
   total_needed_iters = math.ceil(fullsize / chunksize)
-  with new_progress_display(console) as progress:
+  with new_progress_display(the_console) as progress:
     task = progress.add_task(f"Reading {resolved_file_path.name} ...", total=total_needed_iters)
     for x in pd.read_csv(str(resolved_file_path), sep=separator, chunksize=chunksize, dtype=dtype):
       df = df.append(x)
