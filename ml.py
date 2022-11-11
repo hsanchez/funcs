@@ -18,7 +18,7 @@ from .modules import install as install_package
 from .plots import (find_no_clusters_by_dist_growth_acceleration_plot,
                     find_no_clusters_by_elbow_plot, make_dendrogram,
                     plot_column_correlation_heatmap, plot_factors_heatmap,
-                    plot_RCI_distribution, scree_plot)
+                    plot_RCI_distribution, radar_plot, scree_plot)
 
 try:
   from factor_analyzer import FactorAnalyzer
@@ -53,11 +53,21 @@ class RolesReport:
   data: ArrayLike = field(default_factory=list)
   metrics: pd.DataFrame = None
   roles: ArrayLike = field(default_factory=list)
+  # redundancy to ensure we can plot it
+  roles_data: pd.DataFrame = None
   
-  def plot_parameters(self, **kwargs) -> None:
+  def plot_components(self, output=None, **kwargs) -> None:
+    if output is None:
+      output = stderr
+    if len(self.data) == 0:
+      output.print("No data to plot")
+      return
+
     k = find_no_clusters_by_dist_growth_acceleration_plot(self.data, **kwargs)
-    output = kwargs.get('output', stderr)
     output.print(f"Number of clusters: {k}")
+
+    if self.roles_data is not None:
+      radar_plot(self.roles_data)
 
 
 @dataclass(frozen=True)
@@ -248,6 +258,7 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, quiet: bo
     return all_roles_df
 
   roles_df = generate_roles_df(input_df, report)
+  report = replace(report, roles_data=roles_df)
   return roles_df, report
 
 
