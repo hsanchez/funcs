@@ -265,9 +265,8 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, quiet: bo
 
 def compute_role_change_intensity(
   input_df: pd.DataFrame,
-  target_column: str,
-  roles_df: pd.DataFrame,
-  roles: ArrayLike,
+  roles_report: RolesReport,
+  target_column: str = 'Role',
   single_rci: bool = True,
   plot_summary: bool = True,
   dist_fn: ty.Callable[..., float] = euclidean,
@@ -278,6 +277,9 @@ def compute_role_change_intensity(
   the_console = stderr
   if quiet:
     the_console = quiet_stderr
+  
+  roles_df = roles_report.roles_data
+  roles = roles_report.roles
   
   @with_status(console=the_console, prefix='Process samples')
   def process_dataframe(df: pd.DataFrame, tc: str, rls: ArrayLike) -> pd.DataFrame:
