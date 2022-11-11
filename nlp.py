@@ -93,8 +93,13 @@ def split_txt(txt : str, upper: bool = False) -> str:
   return joined_txt
 
 
-def abbreviate_txt(txt : str, upper: bool = False) -> str:
-  joined_first_chars = ''.join(t[0] for t in txt.split())
+def abbreviate_txt(txt : str, upper: bool = False, sep: str = None) -> str:
+  def split_flavor(txt, sep = None):
+    if sep is None:
+      return txt.split()
+    else:
+      return txt.split(sep)
+  joined_first_chars = ''.join(t[0] for t in split_flavor(txt, sep))
   if upper:
     return joined_first_chars.upper()
   return joined_first_chars
