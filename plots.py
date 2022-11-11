@@ -16,6 +16,12 @@ except ImportError:
   install_package('scipy')
   import scipy.cluster.hierarchy as shc
 
+try:
+  import plotly.express as px
+except ImportError:
+  install_package('scipy')
+  import plotly.express as px
+
 
 def plot_RCI_distribution(input_df: pd.DataFrame, **kwargs) -> None:
   seaborn_module = kwargs.get('seaborn_module', None)
@@ -25,6 +31,18 @@ def plot_RCI_distribution(input_df: pd.DataFrame, **kwargs) -> None:
     sns = seaborn_module
   
   sns.histplot(input_df, **kwargs)
+  
+
+def plot_activity_distribution(input_df: pd.DataFrame, **kwargs) -> None:
+  # see https://plotly.com/python/bar-charts/
+  plotly_module = kwargs.get('plotly_module', None)
+  if plotly_module is None:
+    px = import_module('seaborn')
+  else:
+    px = plotly_module
+  
+  fig = px.bar(input_df, **kwargs)
+  fig.show()
 
 
 def scree_plot(input_df: pd.DataFrame, eigenvalues: ArrayLike, **kwargs) -> None:
