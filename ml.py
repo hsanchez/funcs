@@ -285,18 +285,18 @@ def compute_role_change_intensity(
 
   def compute_RCI(df: pd.DataFrame, tc: str, cc: ArrayLike) -> float:
     RCI = 0.0
-    with new_progress_display(console=the_console) as progress:
-      task = progress.add_task("Computing RCI ...", total=len(df))
-      for (_,x),(_,y) in zip(df[:-1].iterrows(), df[1:].iterrows()):
-        R_cur = y[tc].astype(np.int64)
-        R_prev = x[tc].astype(np.int64)
-        RCI += (dist_fn(cc[R_cur], cc[R_prev]))
-        progress.update(task, advance=1)
-  
+    for (_,x),(_,y) in zip(df[:-1].iterrows(), df[1:].iterrows()):
+      R_cur = y[tc].astype(np.int64)
+      R_prev = x[tc].astype(np.int64)
+      RCI += (dist_fn(cc[R_cur], cc[R_prev]))
     return round(np.log10(RCI), 2)
   
+  @with_status(console=the_console, prefix='Compute total RCI')
+  def compute_total_RCI(df: pd.DataFrame, tc: str, cc: ArrayLike) -> float:
+    return compute_RCI(df, tc, cc)
+  
   if single_rci:
-    return compute_RCI(sorted_df, target_column, cluster_centers)
+    return compute_total_RCI(sorted_df, target_column, cluster_centers)
   
   # Otherwise, compute RCI for each sender_id
   @with_status(console=the_console, prefix='Compute RCI')
