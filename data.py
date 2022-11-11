@@ -3,8 +3,14 @@
 import itertools
 import pathlib as pl
 import typing as ty
+from collections import Counter
+from dataclasses import dataclass, replace
+
+import numpy as np
 
 from .arrays import ArrayLike
+from .common import resolve_path, with_status
+from .console import new_progress_display, quiet_stderr, stderr, stdout
 from .modules import install as install_package
 
 try:
@@ -20,25 +26,64 @@ except ImportError:
   import pandas as pd
 
 
-try:
-  import scipy.cluster.hierarchy as shc
-  from scipy.cluster.hierarchy import cophenet
-  from scipy.spatial.distance import euclidean, pdist # computing the distance
-except ImportError:
-  install_package('scipy')
-  import scipy.cluster.hierarchy as shc
-  from scipy.cluster.hierarchy import cophenet
-  from scipy.spatial.distance import euclidean, pdist # computing the distance
+# Based on the persuasion strategies in 
+# Wang, X., Shi, W., Kim, R., Oh, Y., Yang, S., Zhang, J., & Yu, Z. (2019). 
+# Persuasion for good: Towards a personalized persuasive dialogue system for social good.
+# arXiv preprint [arXiv:1906.06725](https://arxiv.org/abs/1906.06725) 
+IDX2PERSUASION = dict({0: 'task-related-inquiry',
+                       1: 'credibility-appeal',
+                       2: 'logical-appeal', 
+                       3: 'personal-related-inquiry', 
+                       4: 'source-related-inquiry', 
+                       5: 'donation-information',
+                       6: 'foot-in-the-door',
+                       7: 'emotion-appeal',
+                       8: 'self-modeling',
+                       9: 'personal-story',
+                       10: 'Unknown'})
 
-from collections import Counter, namedtuple
 
-import numpy as np
+COLUMN_RENAMES = {
+  'message_exper': 'sender_commitment',
+  'commit_exper': 'sender_experience',
+  'is_patch_churn': 'is_patch_update',
+  'is_first_patch_thread': 'is_first_patch_in_thread'}
 
-from .common import resolve_path
-from .console import new_progress_display, stdout
+
+# Define columns of interest
+RELEVANT_FEATURES = [
+  # Developers characteristics
+  'sender_commitment',
+  'sender_experience',
+
+  # Exposition
+  'fkre_score', 
+  'fkgl_score',
+  'word_cnt',
+  'sentence_cnt',
+  'is_persuasive',
+
+  # Email characteristics
+  'is_patch_email', 
+  'is_first_patch_in_thread', 
+  'sent_time',
+  'received_time', 
+  'is_quickly_replied',
+
+  # Patches characteristics
+  'is_patch_update',
+  'is_bug_fix',
+  'is_new_feature',
+  'is_accepted_patch',
+  'is_accepted_commit',
+]
 
 
-ClusterReport = namedtuple('ClusterReport', ['data', 'cophentic_corr', 'cluster_labels'])
+@dataclass(frozen=True)
+class ProcessingResults:
+  raw_data: pd.DataFrame = None
+  unnormed_data: pd.DataFrame = None
+  metrics: pd.DataFrame = None
 
 
 def _check_input_dataframe(input_df: pd.DataFrame) -> None:
@@ -46,6 +91,19 @@ def _check_input_dataframe(input_df: pd.DataFrame) -> None:
   assert input_df.shape[0] > 0 and input_df.shape[1] > 0 , "DataFrame is Empty"
   # duplicate columns check
   assert len(input_df.columns.values)==len(set(input_df.columns.values)) , "DataFrame has duplicate columns"
+
+
+def build_single_row_dataframe(data: dict) -> pd.DataFrame:
+  return pd.DataFrame(data, index=[0])
+
+
+def build_multi_index_dataframe(data: ArrayLike, multi_index_df: pd.DataFrame, columns: ArrayLike) -> pd.DataFrame:
+  _check_input_dataframe(multi_index_df)
+  
+  return pd.DataFrame(
+    data = data, 
+    index=pd.MultiIndex.from_frame(multi_index_df),
+    columns=columns)
 
 
 def get_column_names(input_df: pd.DataFrame, sorted: bool = True) -> ty.List[ty.Any]:
@@ -86,19 +144,21 @@ def find_correlated_pairs(input_df: pd.DataFrame, threshold: float = 0.8) -> pd.
   return corr
 
 
-def drop_columns_safely(input_df: pd.DataFrame, columns: list, inplace: bool = False) -> pd.DataFrame:
+def drop_columns_safely(input_df: pd.DataFrame, columns: list, inplace: bool = False) -> ty.Optional[pd.DataFrame]:
   _check_input_dataframe(input_df)
   intersected_columns = list(set(input_df.columns.values).intersection(set(columns)))
   return input_df.drop(intersected_columns, axis=1, inplace=inplace)
 
 
-def drop_records_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None) -> pd.DataFrame:
+def drop_records_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None, indices_only: bool = False, inplace: bool = False) -> pd.DataFrame:
   if condition is None:
     return input_df
-  return input_df.drop[condition(input_df)]
+  if indices_only:
+    return input_df.drop(input_df[condition(input_df)].index, inplace=inplace)
+  return input_df.drop(condition(input_df), inplace=inplace)
 
 
-def find_zero_one_columns(input_df: pd.DataFrame) -> list:
+def find_binary_columns(input_df: pd.DataFrame) -> list:
   _check_input_dataframe(input_df)
   return input_df.columns[input_df.isin([0, 1]).all()].tolist()
 
@@ -114,6 +174,8 @@ def detect_nan_columns(input_df: pd.DataFrame) -> list:
 
 
 def standardize_dataframe(input_df: pd.DataFrame, add_gaussian_noise: bool = False) -> pd.DataFrame:
+  # Standardize values to have mean zero and unit variance.
+  # (We will use these standardized data in factor analysis.)
   _check_input_dataframe(input_df)
   
   df = input_df.copy()
@@ -161,8 +223,17 @@ def get_records_in_time_window(
     return tmp_df
 
 
+def datetime_column_to_timestamp(input_df: pd.DataFrame, column: str) -> pd.DataFrame:
+  _check_input_dataframe(input_df)
+  # Turn datetime values into Unix second time
+  # unix sec time; thx to https://stackoverflow.com/questions/54312802/
+  input_df[column] = pd.to_datetime(input_df[column]).view(np.int64) // 10 ** 9
+  return input_df
+
+
 def normalize_column(
   input_df: pd.DataFrame,
+  column: str,
   is_datetime: bool = False,
   min_norm: int = 0,
   max_norm: int = 1) -> pd.DataFrame:
@@ -172,9 +243,31 @@ def normalize_column(
   _check_input_dataframe(input_df)
   df = input_df.copy()
   if is_datetime:
-    df[col] = pd.to_datetime(df[col]).astype(np.int64)
+    # TODO(anyone): check whether we need the 10 ** 9 factor
+    df[column] = pd.to_datetime(df[column]).view(np.int64)
+  else:
+    df[column] = (df[column] - df[column].min()) / (df[column].max() - df[column].min()) * (max_norm - min_norm) + min_norm
+  return df
+
+
+def normalize_columns(
+  input_df: pd.DataFrame,
+  min_norm: int = 0,
+  max_norm: int = 1) -> pd.DataFrame:
+  """
+  Normalize the column values to a range of [min_norm, max_norm]
+  """
+  _check_input_dataframe(input_df)
+  df = input_df.copy()
+  
+  datetime_columns = set(df.select_dtypes(include=[np.datetime64]).columns.to_list())
   for col in df.columns:
-    df[col] = (df[col] - df[col].min()) / (df[col].max() - df[col].min()) * (max_norm - min_norm) + min_norm
+    df = normalize_column(
+      df,
+      col,
+      is_datetime=(col in datetime_columns),
+      min_norm=min_norm,
+      max_norm=max_norm)
   return df
 
 
@@ -186,7 +279,7 @@ def describe_timeline(time_frame_skipgrams: np.ndarray, time_periods_in_window_r
   # Count the number of skipgrams in each time frame
   time_frame_skipgrams_counts = Counter(time_frame_skipgrams)
   # Print the distribution
-  print("Distribution of skipgrams in the time frame")
+  stdout.print("Distribution of skipgrams in the time frame")
   
   data_for_dataframe = {}
   for time_frame, skipgrams_count in time_frame_skipgrams_counts.items():
@@ -306,8 +399,10 @@ def build_cooccur_matrix(skipgrams: np.ndarray, activities: ty.List[str], all_ti
   return np.array(cooccur)
 
 
-def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None, separator: str = ',') -> pd.DataFrame:
+def fast_read_and_append(file_path: str, chunksize: int = None, factor: int = 4, fullsize: float = 1e9, dtype: ty.Any = None, console: ty.Any = None, separator: str = ',') -> pd.DataFrame:
   import math
+
+  import psutil as ps
 
   # in chunk reading be careful as pandas might infer a columns dtype 
   # as different for diff chunk. As such specifying a dtype while
@@ -316,6 +411,19 @@ def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, 
   # In case of that already happened then 
   #         df_test["publisherId"] = df_test["publisherId"].apply(str)
   resolved_file_path = pl.Path(resolve_path(file_path))
+  
+  if chunksize is None:
+    try:
+      # estimate the available memory for the dataframe chunks
+      chunksize = (
+        ps.virtual_memory().available // (pd.read_csv(
+          str(resolved_file_path), 
+          sep=separator, nrows=1).memory_usage(deep=True).sum() * factor))
+    except Exception:
+      chunksize = 1000
+      stderr.print(f"[yellow]Failed to estimate chunksize for file: {resolved_file_path}")
+      stderr.print(f"[yellow]Set default chunksize to: {chunksize}")
+
   df = pd.DataFrame()
   total_needed_iters = math.ceil(fullsize / chunksize)
   with new_progress_display(console) as progress:
@@ -327,20 +435,22 @@ def fast_read_and_append(file_path: str, chunksize: int, fullsize: float = 1e9, 
     return df
 
 
-def ordinal_encode(df: pd.DataFrame, cols: ty.List[str], encoding_view: bool = False) -> pd.DataFrame:
+def ordinal_encode(input_df: pd.DataFrame, cols: ty.List[str], encoding_view: bool = False) -> pd.DataFrame:
   """
   Perform ordinal encoding transformation on the specified columns 
   in the dataframe. The expected shape is 2D.
   """
-  df_ord = df.copy()
+  _check_input_dataframe(input_df)
+  df_ord = input_df.copy()
   if not cols or len(cols) == 0:
     cols = df_ord.columns.to_list()
   enc = OrdinalEncoder()
   df_ord[cols] = enc.fit_transform(df_ord[cols])
   if encoding_view:
     # encoding view
-    return df.assign(rating_enc=df_ord)
+    return input_df.assign(rating_enc=df_ord)
   return df_ord
+
 
 def get_pairwise_co_occurrence(array_of_arrays: ty.List[list], items_taken_together: int = 2) -> pd.DataFrame:
   counter = Counter()
@@ -387,30 +497,102 @@ def select_columns_subset_from_dataframe(input_df: pd.DataFrame, columns: ty.Lis
     return result_df
 
 
-def cluster_data(
+def rename_columns_in_dataframe(
+  input_df: pd.DataFrame, 
+  name2name: ty.Dict[str, str], 
+  inplace: bool = True) -> ty.Optional[pd.DataFrame]:
+  """Renames columns in a given dataframe.
+
+  Args:
+    input_df: input dataframe
+    columns: dictionary of columns to rename
+    inplace: whether to rename columns in place or not
+  """
+  _check_input_dataframe(input_df)
+  return input_df.rename(columns=name2name, inplace=inplace)
+
+
+
+def process_and_clean_dataframe(
   input_df: pd.DataFrame,
-  callback: ty.Callable[[ArrayLike, ty.Any], None] = None,
-  **kwargs) -> ClusterReport:
+  features: ty.List[str] = RELEVANT_FEATURES,
+  idx2persuasion: dict = IDX2PERSUASION, 
+  name2name: dict = COLUMN_RENAMES,
+  quiet: bool = False) -> pd.DataFrame:
   _check_input_dataframe(input_df)
   
-  Z = shc.linkage(input_df, method='ward')
-  if not Z:
-    raise ValueError("Z is empty!")
+  the_console = stderr
+  if quiet:
+    the_console = quiet_stderr
   
-  c, _ = cophenet(Z, pdist(input_df))
-  cophenetic_corr_coeff = round(c, 2)
+  df = input_df.copy()
   
-  cluster_labels = []
-  flat_option = kwargs.get('flat_option', False)
-  if flat_option:
-    no_clusters = kwargs.get('no_clusters', 5)
-    criterion = kwargs.get('criterion', 'maxclust')
-    cluster_labels = shc.fcluster(Z, no_clusters, criterion=criterion)
+  @with_status(console=the_console, prefix="Generate features")
+  def process_relevant_columns(data: pd.DataFrame) -> ty.Tuple[pd.DataFrame, ProcessingResults]:
+    report = ProcessingResults()
+    # Prior analysis on the LKML confirmed that patch emails
+    # tend to get a response within 3.5 hrs (on average).
+    # For sake of simplicity, we used 4 hrs instead of 3.5 hrs. 
+    # 4 * 60 * 60. Any response within 4 hrs is considered as 'quickly responded'.
+    four_h_lapse = 14400
+    data['is_quickly_replied'] = data['time_lapse'].apply(
+      lambda x: 1 if (x <= four_h_lapse and x != -1) else 0)
+    
+    persuasion_set = idx2persuasion.keys() - {10}
+    # Is Patch Email persuasive?
+    data['is_persuasive'] = data['persuasion'].apply(
+      lambda x: 1 if (x in persuasion_set) else 0)
+    drop_columns_safely(data, ['persuasion'], True)
+    
+    # Filter all rows for which the developer's
+    # word count on their emails is greater than or equal to 50
+    # df.drop(df[df['word_cnt'] < 50].index, inplace = True)
+    drop_records_match_condition(data, lambda x: x.word_cnt < 50, True, True)
+    
+    # Turn datetime values into Unix second time
+    # unix sec time; thx to https://stackoverflow.com/questions/54312802/
+    # or to https://stackoverflow.com/questions/40881876/
+
+    data = datetime_column_to_timestamp(data, 'sent_time')
+    data = datetime_column_to_timestamp(data, 'received_time')
+    
+    # Renames certain columns
+    rename_columns_in_dataframe(data, name2name, inplace=True)
+    
+    reduced_data = data[features].copy()
+    # Computes verbosity of the patch email
+    reduced_data['verbosity'] = reduced_data['word_cnt'] / reduced_data['sentence_cnt']
+    ## Replace NaN cases with Zero and the drop word and sentence counts
+    reduced_data.fillna(value={'verbosity': 0}, inplace=True)
+    drop_columns_safely(reduced_data, ['word_cnt', 'sentence_cnt'], inplace=True)
+
+    (no_rows, no_feats) = reduced_data.shape
+    no_binary_feats = len(find_binary_columns(reduced_data))
+    
+    metrics = {
+      'RecordCount' : no_rows,
+      'FeatureCount' : no_feats,
+      'NumericFeatures' : no_feats - no_binary_feats,
+      'BinaryFeatures' : no_binary_feats}
+    
+    metrics = build_single_row_dataframe(metrics)
+    report = replace(report, raw_data=data, unnormed_data=reduced_data, metrics=metrics)
+    
+    reduced_data_norm = standardize_dataframe(reduced_data, add_gaussian_noise=True)
+    
+    return (reduced_data_norm, report)
   
-  if callback:
-    callback(Z, **kwargs)
+  df, report = process_relevant_columns(df)
   
-  return ClusterReport(Z, cophenetic_corr_coeff, cluster_labels)
+  @with_status(console=the_console, prefix="Standardize features")
+  def standardize_with_noise(data: pd.DataFrame) -> pd.DataFrame:
+    return standardize_dataframe(data, add_gaussian_noise=True)
+  
+  # Standardize values to have mean zero and unit variance.
+  df = standardize_with_noise(df)
+  
+  # returns interest_df_norm, report
+  return df, report
 
 
 if __name__ == "__main__":

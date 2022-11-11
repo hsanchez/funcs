@@ -9,21 +9,33 @@ import shutil
 import typing as ty
 from itertools import islice
 from timeit import default_timer as timer
+from types import ModuleType
 
-from .console import new_live_display
+from .console import new_live_display, stderr
 
 Decoratee = ty.TypeVar('Decoratee', bound=ty.Callable[..., ty.Any])
 OutputType = ty.TypeVar("OutputType")
 PathLike = ty.Union[str, pathlib.Path]
 
 
+def set_default_vars(os_env: dict = None, ipython_val: ty.Any = None) -> None:
+  if os_env is not None:
+    os.environ.update(os_env)
+  
+  if ipython_val is not None:
+    is_colab = 'google.colab' in str(ipython_val)
+    os.environ['__IS_COLAB__'] = str(is_colab)
+
+
 # thx to https://stackoverflow.com/questions/53581278
-def is_run_in_colab(extra_builtins: ty.Any = None, get_ipython_fn: ty.Callable[..., ty.Any] = None) -> bool:
+def is_run_in_colab() -> bool:
   if 'google.colab' in os.environ['PATH']:
     return True
-  elif hasattr(__builtins__,'__IPYTHON__') or hasattr(extra_builtins,'__IPYTHON__'):
+  elif '__IS_COLAB__' in os.environ and os.environ['__IS_COLAB__'] == 'True':
+    return True
+  elif hasattr(__builtins__,'__IPYTHON__'):
     from IPython import get_ipython
-    return 'google.colab' in str(get_ipython()) or 'google.colab' in str(get_ipython_fn())
+    return 'google.colab' in str(get_ipython())
   return False
 
 
