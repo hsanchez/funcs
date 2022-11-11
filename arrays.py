@@ -455,5 +455,24 @@ def topk_vectors_alignments(
   return rank_alignments(top_alignments, top_scores, [V_i, V_j], vec_index)
 
 
+def multidimensional_shifting(num_samples: int, sample_size: int, elements: ArrayLike, probabilities: ArrayLike = None) -> np.ndarray:
+  # thx to https://ethankoch.medium.com/incredibly-fast-random-sampling-in-python-baf154bd836a
+  if probabilities is None:
+    probabilities = np.random.random(len(elements))
+    probabilities /= np.sum(probabilities)
+  else:
+    assert len(elements) == len(probabilities), 'Elements and probabilities must be of the same length.'
+  
+  # replicate probabilities as many times as `num_samples`
+  replicated_probabilities = np.tile(probabilities, (num_samples, 1))
+  # get random shifting numbers & scale them correctly
+  random_shifts = np.random.random(replicated_probabilities.shape)
+  # shift by numbers & find largest (by finding the smallest of the negative)
+  random_shifts /= random_shifts.sum(axis=1)[:, np.newaxis]
+  shifted_probabilities = random_shifts - replicated_probabilities
+  
+  return np.argpartition(shifted_probabilities, sample_size, axis=1)[:, :sample_size]
+
+
 if __name__ == "__main__":
   pass
