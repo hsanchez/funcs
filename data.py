@@ -313,9 +313,9 @@ def timeline_slicing(
   if by_period not in ['year', 'week', 'day']:
     raise ValueError(f"Invalid value for by_period: {by_period}")
   
-  the_console = stderr
+  the_console = quiet_stderr
   if progress_bar:
-    the_console = quiet_stderr
+    the_console = stderr
 
   def get_time_period_series(df: pd.DataFrame, bp: str, col: str) -> ty.Any:
     if bp == 'year':
@@ -393,9 +393,9 @@ def fast_read_and_append(
   import math
   import psutil as ps
   
-  the_console = stderr
+  the_console = quiet_stderr
   if progress_bar:
-    the_console = quiet_stderr
+    the_console = stderr
 
   # in chunk reading be careful as pandas might infer a columns dtype 
   # as different for diff chunk. As such specifying a dtype while
