@@ -14,6 +14,7 @@ from .data import (_check_input_dataframe, build_multi_index_dataframe,
                    build_single_row_dataframe, get_records_match_condition,
                    normalize_columns)
 from .highlights import highlight_eigenvalues
+from .modules import import_module
 from .modules import install as install_package
 from .plots import (find_no_clusters_by_dist_growth_acceleration_plot,
                     find_no_clusters_by_elbow_plot, make_dendrogram,
@@ -430,6 +431,159 @@ def build_tsne_projections(
   
   return projections
 
+
+def _get_distance_triplets(
+  z_data: ArrayLike, 
+  c_data: ArrayLike, 
+  # ~50 weeks in a year
+  scale: float = 50.) -> ty.Tuple[ArrayLike, ArrayLike, ArrayLike]:
+  zp = z_data * 1.0
+  zp[:,0] = zp[:,0] * 2.
+  
+  dist_matrix = np.zeros((z_data.shape[0], z_data.shape[0]))
+  for k in range(z_data.shape[0]):
+    dist_matrix[:, k] = np.sum((zp - np.tile(zp[k,:], (z_data.shape[0], 1)))**2., axis=1)
+  dist_to_centers = dist_matrix[:, c_data]
+  dist_to_centers = np.min(dist_to_centers, axis=1)
+  
+  dist_to_others = dist_matrix + np.eye(z_data.shape[0]) * scale
+  dist_to_others_idx = np.argsort(dist_to_others, axis=1)
+  dist_to_others = np.sort(dist_to_others, axis=1)
+  
+  return dist_to_centers, dist_to_others, dist_to_others_idx
+
+
+def tracking_moving_activity(
+  activity: str, 
+  projections: ty.Dict[str, Projection2D],
+  activities: ty.Set[str],
+  context_activities: ty.Set[str],
+  act2abbr: ty.Dict[str, str],
+  trained_model: ty.Any,
+  time_slices: ArrayLike,
+  draw_trace: bool = True,
+  k_nearest_neighbors: int = 10,
+  filter_ctx_activities: bool = False,
+  **kwargs) -> ArrayLike:
+  from queue import Queue
+  
+  x_shift = kwargs.get('x_shift', 2)
+  fontsize = kwargs.get('fontsize', 12)
+  s = kwargs.get('s', 150)
+  color = kwargs.get('color', 'none')
+  edgecolor = kwargs.get('edgecolor', 'red')
+  
+  plt_module = kwargs.get('pyplot_module', None)
+  if plt_module is None:
+    plt = import_module('matplotlib.pyplot', 'matplotlib')
+  else:
+    plt = plt_module
+  
+  if 'x_shift' in kwargs:
+    del kwargs['x_shift']
+  
+  def get_marker_options(act: str, club_a: ty.Set[str], club_c: ty.Set[str]) -> ty.Tuple[str, float, bool]:
+    is_ctx_act = True in [act in c for c in club_c]
+    is_rel_act = True in [act in c for c in club_a]
+    alpha = None
+    # alpha is none for ctx activities
+    if is_ctx_act:
+      marker = 'go'
+    elif is_rel_act:
+      marker = 'mo'
+      alpha = 0.5
+    else:
+      # irrelevant activity
+      marker = 'b.'
+      alpha = 0.1
+    return marker, alpha, is_ctx_act
+
+  trajectory = []
+  
+  proj2d = projections[activity]
+  d2c, _, _ = _get_distance_triplets(proj2d.Z, proj2d.C)
+
+  # draw activity movement in time
+  scope = Queue()
+  for k in range(len(proj2d.N) - 1, -1, -1):
+    if proj2d.C[k]:
+      trajectory += [proj2d.Z[k,:]]
+      # catch time period (e.g., week)
+      scope.put(proj2d.N[k][1])
+
+      if draw_trace:
+        marker, _, is_ctx_act = get_marker_options(
+          proj2d.N[k][0],
+          activities, 
+          context_activities)
+        
+        label = f'{act2abbr[proj2d.N[k][0]]}-{proj2d.N[k][1]}'
+        y_shift = np.random.randn() * .2
+        plt.plot(proj2d.Z[k,0], proj2d.Z[k,1], marker)
+        plt.text(
+          proj2d.Z[k,0] - x_shift, proj2d.Z[k,1] + y_shift, label, fontsize=fontsize)
+
+        if is_ctx_act:
+          plt.scatter(
+            proj2d.Z[k,0], proj2d.Z[k,1], s=s, color=color, edgecolor=edgecolor)
+  
+  trajectory = np.vstack(trajectory)
+  if not draw_trace:
+    return trajectory
+  
+  # captures ctx activities nearby the current
+  # activity point in time
+  dists = []
+  ctx_acts = []
+  while not scope.empty():
+    time_slice = scope.get()
+    time_slice_idx = time_slices.index(time_slice)
+    k_neighbors = trained_model.k_nearest(
+      activity, k=k_nearest_neighbors)[time_slice_idx]
+    
+    if filter_ctx_activities:
+      mu = np.mean([float(n[1]) for n in k_neighbors])
+      k_neighbors = np.array([x for x in k_neighbors if float(x[1]) > mu])
+    else:
+      k_neighbors = np.array([x for x in k_neighbors])
+    
+    for w in [(nb[0], time_slice) for nb in k_neighbors]:
+      if w not in proj2d.N: continue ;
+      k = proj2d.N.index(w)
+      dists += [d2c[k]]#/100]
+      ctx_acts += [k]
+  
+  # draw points that represent ctx activities
+  # nearby the current activity point in time
+  dist_mu = np.mean(dists)
+  for k in ctx_acts:
+    if d2c[k] > dist_mu:
+      continue
+    # label = f' {config.act2abbr[N[k][0]]}-{N[k][1]}'
+    label = f'{act2abbr[proj2d.N[k][0]]}-{proj2d.N[k][1]}'
+    marker, alpha, _ = get_marker_options(
+      proj2d.N[k][0],
+      activities, 
+      context_activities)
+    if alpha is None:
+      x_shift = 0.
+    y_shift = np.random.randn() * .2
+    if alpha is None:
+      plt.plot(proj2d.Z[k,0] - x_shift, proj2d.Z[k,1], marker)
+      plt.text(proj2d.Z[k,0] - x_shift, proj2d.Z[k,1] + y_shift, label, fontsize=fontsize)
+      plt.scatter(proj2d.Z[k,0], proj2d.Z[k,1], s=s, color=color, edgecolor=edgecolor)
+    else:
+      plt.plot(proj2d.Z[k,0] - x_shift, proj2d.Z[k,1], marker, alpha=alpha)
+      plt.text(
+        proj2d.Z[k,0] - x_shift, proj2d.Z[k,1] + y_shift, label, fontsize=fontsize, alpha=alpha)
+  
+  plt.axis('off')
+  plt.plot(trajectory[:,0], trajectory[:,1])
+  plt.show()
+  
+  # After plotting the trajectory, return it to the caller.
+  return trajectory
+    
 
 if __name__ == "__main__":
   pass
