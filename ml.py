@@ -43,9 +43,11 @@ except ImportError:
 
 try:
   from sklearn.cluster import AgglomerativeClustering
+  from sklearn.manifold import TSNE
 except ImportError:
   install_package('scikit-learn')
   from sklearn.cluster import AgglomerativeClustering
+  from sklearn.manifold import TSNE
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,16 @@ class FactorAnalysisReport:
   metrics: pd.DataFrame = None
   factor_scores: pd.DataFrame = None
   factors: Styler = None
+
+@dataclass(frozen=True)
+class Projection2D:
+  # projection data
+  Z: ArrayLike = None
+  # neighbors
+  N: ArrayLike = None
+  # encoding for whether a point (the array index) 
+  # is a center point (the bool value at that index)
+  C: ArrayLike = None
 
 
 def factor_analysis(
@@ -357,6 +369,66 @@ def intra_cluster_variation(
 
   return wss
 
+
+def build_tsne_projection(
+  activity: str,
+  time_slices: ArrayLike,
+  trained_model: ty.Any,
+  act2idx: dict,
+  idx2act: dict,
+  n_neighbors: int = 10,
+  n_components: int = 2) -> ty.Dict[str, Projection2D]:
+  
+  X_input = []
+  neighbors = []
+  center_points = []
+  
+  for time_slice in time_slices:
+    embedding = trained_model.embeddings[time_slices.index(time_slice)]
+    embedding_norm = np.reshape(np.sqrt(np.sum(embedding**2, 1)),(embedding.shape[0], 1))
+    embedding_normalized = np.divide(embedding, np.tile(embedding_norm, (1, embedding.shape[1])))
+
+    v = embedding_normalized[act2idx[activity], :]
+    d = np.dot(embedding_normalized, v)
+    
+    idx = np.argsort(d)[::-1]
+    nearby_acts = [(idx2act[k], time_slice) for k in list(idx[:n_neighbors])]
+    neighbors.extend(nearby_acts)
+    
+    for k in range(n_neighbors):
+      center_points.append(k == 0)
+    
+    X_input.append(embedding[idx[:n_neighbors], :])
+  
+  X_input = np.vstack(X_input)
+  tsne_model = TSNE(n_components=n_components, metric='euclidean', init='pca')
+  Z_input = tsne_model.fit_transform(X_input)
+  
+  projection2D = Projection2D(Z=Z_input, N=neighbors, C=center_points)
+  return dict({activity: projection2D})
+
+
+def build_tsne_projections(
+  activities: ty.List[str],
+  time_slices: ArrayLike,
+  trained_model: ty.Any,
+  act2idx: dict,
+  idx2act: dict,
+  n_neighbors: int = 10,
+  n_components: int = 2) -> ty.Dict[str, Projection2D]:
+  
+  projections = {}
+  for activity in activities:
+    projections.update(build_tsne_projection(
+      activity,
+      time_slices,
+      trained_model,
+      act2idx,
+      idx2act,
+      n_neighbors,
+      n_components))
+  
+  return projections
 
 
 if __name__ == "__main__":
