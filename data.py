@@ -81,10 +81,25 @@ RELEVANT_FEATURES = [
 
 
 @dataclass(frozen=True)
-class ProcessingResults:
+class ProcessingReport:
   raw_data: pd.DataFrame = None
   unnormed_data: pd.DataFrame = None
   metrics: pd.DataFrame = None
+  
+  
+@dataclass(frozen=True)
+class BuildingReport:
+  contributor_activities: ArrayLike = None
+  maintainer_activities: ArrayLike = None
+  maintainer_to_activity: dict = None
+  contributor_to_activity: dict = None
+  metrics: pd.DataFrame = None
+  
+  def build_indices(self) -> ty.Tuple[dict, dict]:
+    all_acts = np.unique(np.concatenate([self.contributor_activities, self.maintainer_activities]))
+    act2idx = {act: idx for idx, act in enumerate(all_acts)}
+    idx2act = {idx: act for idx, act in enumerate(all_acts)}
+    return act2idx, idx2act
 
 
 def _check_input_dataframe(input_df: pd.DataFrame) -> None:
@@ -296,9 +311,15 @@ def describe_timeline(time_frame_skipgrams: np.ndarray, time_periods_in_window_r
   return skipgrams_df
 
 
-def get_unique_column_values(input_df: pd.DataFrame, target_column: str) -> np.ndarray:
+def get_unique_column_values(
+  input_df: pd.DataFrame, target_column: ty.Union[str, ArrayLike]) -> np.ndarray:
   _check_input_dataframe(input_df)
-  return input_df[target_column].unique()
+  
+  if isinstance(target_column, str):
+    return input_df[target_column].unique()
+  
+  # stack of columns values
+  return input_df[target_column].values
 
 
 def timeline_slicing(
@@ -391,6 +412,7 @@ def fast_read_and_append(
   separator: str = ','
   ) -> pd.DataFrame:
   import math
+
   import psutil as ps
   
   the_console = quiet_stderr
@@ -460,11 +482,35 @@ def get_pairwise_co_occurrence(array_of_arrays: ty.List[list], items_taken_toget
   return co_oc
 
 
+def get_str_columns(input_df: pd.DataFrame) -> ArrayLike:
+  """
+  Get the columns that are of type str.
+  """
+  _check_input_dataframe(input_df)
+  # thx to https://stackoverflow.com/questions/70401403
+  obj_cols = input_df.select_dtypes(include=['object']).columns.to_list()
+  str_cols = [c for c in obj_cols if pd.to_numeric(input_df[c], errors='coerce').isna().all()]
+  return np.array(str_cols)
+
+
 def get_records_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None) -> pd.DataFrame:
-  # e.g., get_records_match_condition(df, df.month == 'January')
+  _check_input_dataframe(input_df)
+  # e.g., get_records_match_condition(df, lambda x: x.month == 'January')
   if condition is None:
     return input_df
   return input_df.loc[condition(input_df)]
+
+
+def get_str_records_match_substr(input_df: pd.DataFrame, column_substr: str, str_column: str = None) -> ArrayLike:
+  _check_input_dataframe(input_df)
+  if str_column is None:
+    # thx to https://stackoverflow.com/questions/70401403
+    str_columns = get_str_columns(input_df)
+  else:
+    str_columns = [str_column]
+  # thx to https://stackoverflow.com/questions/26640129
+  condition = np.column_stack([input_df[col].str.contains(column_substr, case=False, na=False) for col in str_columns])
+  return input_df.loc[condition.any(axis=1)].values.tolist()
 
 
 def select_columns_subset_from_dataframe(input_df: pd.DataFrame, columns: ty.List[str]) -> pd.DataFrame:
@@ -506,12 +552,126 @@ def rename_columns_in_dataframe(
 
 
 
+def augment_dataframe_with_column(
+  input_df: pd.DataFrame, 
+  column_name: str, 
+  column_values: ArrayLike) -> pd.DataFrame:
+  """Augments a dataframe with a new column.
+
+  Args:
+    input_df: input dataframe
+    column_name: name of the new column
+    column_values: values of the new column
+
+  Returns:
+    The resulting augmented dataframe
+  """
+  _check_input_dataframe(input_df)
+  result_df = input_df.copy()
+  result_df[column_name] = column_values
+  return result_df
+
+
+def build_diachronic_dataframe(
+  activity_df: pd.DataFrame, 
+  maintainer_df: pd.DataFrame,
+  maintainer_name_column: str = 'val',
+  contributor_name_column: str = 'sendername_thread',
+  # TODO(Briland): make sure this is changed to the correct column name
+  activity_name_column: str = 'triplet_two', 
+  maintainer_prefixes: ArrayLike = None,
+  plot_summary: bool = False) -> ty.Tuple[pd.DataFrame, BuildingReport]:
+  
+  all_activities = get_unique_column_values(
+    activity_df, target_column=[activity_name_column, contributor_name_column])
+  
+  if len(all_activities) == 0:
+    raise ValueError('No activities found in the input dataframe!')
+  
+  # get the unique contributors and their
+  contributor_group = []
+  developers_group_idx = {}
+  for act_arr in all_activities:
+    assert len(act_arr) == 2
+    act_name, contrib_name = act_arr[0], act_arr[1]
+    if contrib_name not in developers_group_idx:
+      developers_group_idx[contrib_name] = []
+    if 'bot' not in act_name:
+      developers_group_idx.append(act_name)
+    contributor_group.append(contrib_name)
+  contributor_group = np.unique(contributor_group)
+  
+  # get unique maintainers
+  maintainer_group = []
+  if maintainer_prefixes is not None:
+    found_recs = np.unique([m for p in maintainer_prefixes
+                            for matches in get_str_records_match_substr(maintainer_df, p, maintainer_name_column) 
+                            for m in matches if 'bot' not in m])
+    maintainer_group.extend(found_recs)
+  else:
+    found_recs = np.unique([x for x in maintainer_df[maintainer_name_column].values if 'bot' not in x])
+    maintainer_group.extend(found_recs)
+  maintainer_group = np.unique(maintainer_group)
+
+  # distinguish between maintainers and contributors
+  maintainer_activities = []
+  contributor_activities = []
+  maintainer_group_idx = {}
+  contributor_group_idx = {}
+  for dev_name in developers_group_idx:
+    if dev_name in maintainer_group:
+      maintainer_group_idx[dev_name] = developers_group_idx[dev_name]
+      maintainer_activities.extend(developers_group_idx[dev_name])
+    else:
+      contributor_group_idx[dev_name] = developers_group_idx[dev_name]
+      contributor_activities.extend(developers_group_idx[dev_name])
+  
+  maintainer_activities = np.unique(maintainer_activities)
+  contributor_activities = np.unique(contributor_activities)
+  
+  report = BuildingReport(
+    contributor_activities=contributor_activities,
+    maintainer_activities=maintainer_activities,
+    contributor_to_activity=contributor_group_idx,
+    maintainer_to_activity=maintainer_group_idx)
+  
+  rel_activities = np.union1d(maintainer_activities + contributor_activities)
+  
+  diachronic_df_updated = activity_df[['sender_id', 'sent_time', activity_name_column]].copy()
+  drop_records_match_condition(
+    diachronic_df_updated,
+    # retain only relevant activities
+    lambda x: ~x[activity_name_column].isin(rel_activities), 
+    inplace=True)
+  
+  diachronic_df_updated['sent_time'] = pd.to_datetime(diachronic_df_updated['sent_time'], utc=True)
+  start_period = diachronic_df_updated.sent_time.min()
+  end_period = diachronic_df_updated.sent_time.max()
+  
+  metrics = {
+    'ContributorActivityCount' : len(contributor_activities),
+    'MaintainerActivityCount' : len(maintainer_activities),
+    'ContributorCount' : len(contributor_group),
+    'MaintainerCount' : len(maintainer_group), 
+    'StartPeriod' : start_period,
+    'EndPeriod' : end_period}
+  
+  metrics = build_single_row_dataframe(metrics)
+  report  = replace(report, metrics=metrics)
+  
+  if plot_summary:
+    freq_activity = diachronic_df_updated.groupby(diachronic_df_updated.sent_time.dt.isocalendar().week).size()
+    freq_activity.plot.bar(log=True, xlabel="Week of Year",  ylabel="No. of records",  figsize=(20, 10), rot=0)
+  
+  return diachronic_df_updated, report
+
+
 def process_and_clean_dataframe(
   input_df: pd.DataFrame,
   features: ty.List[str] = RELEVANT_FEATURES,
   idx2persuasion: dict = IDX2PERSUASION, 
   name2name: dict = COLUMN_RENAMES,
-  quiet: bool = False) -> pd.DataFrame:
+  quiet: bool = False) -> ty.Tuple[pd.DataFrame, ProcessingReport]:
   _check_input_dataframe(input_df)
   
   the_console = stderr
@@ -521,8 +681,8 @@ def process_and_clean_dataframe(
   df = input_df.copy()
   
   @with_status(console=the_console, prefix="Generate features")
-  def process_relevant_columns(data: pd.DataFrame) -> ty.Tuple[pd.DataFrame, ProcessingResults]:
-    report = ProcessingResults()
+  def process_relevant_columns(data: pd.DataFrame) -> ty.Tuple[pd.DataFrame, ProcessingReport]:
+    report = ProcessingReport()
     # Prior analysis on the LKML confirmed that patch emails
     # tend to get a response within 3.5 hrs (on average).
     # For sake of simplicity, we used 4 hrs instead of 3.5 hrs. 
