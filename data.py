@@ -580,6 +580,7 @@ def build_diachronic_dataframe(
   # TODO(Briland): make sure this is changed to the correct column name
   activity_name_column: str = 'triplet_two', 
   maintainer_prefixes: ArrayLike = None,
+  contributor_prefixes: ArrayLike = None,
   plot_summary: bool = False) -> ty.Tuple[pd.DataFrame, BuildingReport]:
   
   all_activities = get_unique_column_values(
@@ -634,6 +635,12 @@ def build_diachronic_dataframe(
     maintainer_activities=maintainer_activities,
     contributor_to_activity=contributor_group_idx,
     maintainer_to_activity=maintainer_group_idx)
+  
+  if contributor_prefixes is not None:
+    # reduce the contributor group to the ones that match the prefixes
+    contributor_activities = np.unique([act for p in contributor_prefixes for act in contributor_activities if p in act]) 
+    if len(contributor_activities) == 0:
+      raise ValueError('No contributors found in the input dataframe!')
   
   rel_activities = np.union1d(maintainer_activities + contributor_activities)
   
