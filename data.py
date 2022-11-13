@@ -317,6 +317,7 @@ def describe_timeline(time_frame_skipgrams: np.ndarray, time_periods_in_window_r
     xlabel="Week of Year",
     ylabel="No. of skipgrams",
     figsize=(20, 10), rot=0, )
+
   return skipgrams_df
 
 
