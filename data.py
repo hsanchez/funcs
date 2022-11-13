@@ -175,12 +175,14 @@ def drop_columns_safely(input_df: pd.DataFrame, columns: list, inplace: bool = F
   return input_df.drop(intersected_columns, axis=1, inplace=inplace)
 
 
-def drop_records_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None, indices_only: bool = False, inplace: bool = False) -> pd.DataFrame:
+def drop_records_match_condition(input_df: pd.DataFrame, condition: ty.Callable[[pd.Series], bool] = None, indices_only: bool = False, inplace: bool = False, axis = None) -> pd.DataFrame:
   if condition is None:
     return input_df
   if indices_only:
     return input_df.drop(input_df[condition(input_df)].index, inplace=inplace)
-  return input_df.drop(condition(input_df), inplace=inplace)
+  if axis is None:
+    return input_df.drop(input_df[condition(input_df)].index, inplace=inplace)
+  return input_df.drop(condition(input_df), inplace=inplace, axis=axis)
 
 
 def find_binary_columns(input_df: pd.DataFrame) -> list:
