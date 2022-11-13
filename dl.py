@@ -11,6 +11,7 @@ from .arrays import ArrayLike, multidimensional_shifting
 from .common import take
 from .console import new_progress_display, quiet_stderr, stderr
 from .modules import install as install_package
+from .plots import plot_dynamic_activity_embeddings
 
 try:
   import torch
@@ -82,6 +83,23 @@ class Acceleration:
 @dataclass(frozen=True)
 class TrainingReport:
   metrics: pd.DataFrame = None
+  timeline_slices: list = field(default_factory=list)
+  # NOTE: we keep a copy of this in order to avoid 
+  # passing unnecessary params to plot_activity_landscape
+  activity_models: list = field(default_factory=list)
+  name2abbr: dict = field(default_factory=dict)
+  
+  def plot_activity_landscape(self, time_slice: int, **kwargs) -> None:
+    if len(self.name2abbr) == 0:
+      raise ValueError("name2abbr is empty")
+    
+    activities = np.array([a for a in self.name2abbr])
+    
+    plot_dynamic_activity_embeddings(
+      activities, 
+      self.activity_models[self.timeline_slices.index(time_slice)],
+      self.name2abbr,
+      **kwargs)
 
 
 def set_random_seed(seed):
@@ -118,7 +136,7 @@ def accelerate_model(
   timeline_slices: ArrayLike, 
   act2idx: dict, 
   embedding_size: int = 120, 
-  learn_rate: float = 0.001, 
+  learn_rate: float = 0.001,
   accelerator: Accelerator = Accelerator()) -> Acceleration:
   
   if isinstance(timeline_slices, np.ndarray):
@@ -211,7 +229,8 @@ def test_fn(model, test_data_loader, criterion, epoch, accelerator, suffix='...'
 def learn_dynamic_activity_model(
   acceleration_config: Acceleration, 
   timeline_slices: ArrayLike,
-  epochs: int) -> ty.Tuple[ArrayLike, TrainingReport]:
+  epochs: int,
+  name2abbr: dict = None) -> ty.Tuple[ArrayLike, TrainingReport]:
   
   accelerations = acceleration_config.steps
   accelerator = acceleration_config.accelerator
@@ -249,7 +268,15 @@ def learn_dynamic_activity_model(
         'LearningRate': lr, 
         'Accuracy': acc}]
     model_at_time_slice += [model]
-  report = TrainingReport(metrics=pd.DataFrame.from_dict(metrics))
+  
+  report = TrainingReport(
+    metrics=pd.DataFrame.from_dict(metrics),
+    timeline_slices=timeline_slices,
+    activity_models=model_at_time_slice)
+  
+  if name2abbr is not None:
+    report = replace(report, name2abbr=name2abbr)
+  
   return model_at_time_slice, report
 
 
