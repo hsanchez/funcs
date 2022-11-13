@@ -298,29 +298,26 @@ def normalize_columns(
   return df
 
 
-def describe_timeline(time_frame_skipgrams: np.ndarray, time_periods_in_window_range: ty.Union[np.ndarray, list]) -> pd.DataFrame:
+def describe_timeline(skipgrams_in_timeline: np.ndarray, timeline_slices: ArrayLike) -> pd.DataFrame:
   """Prints the distribution of the skipgrams in the time frame"""
-  if isinstance(time_periods_in_window_range, np.ndarray):
-    time_periods_in_window_range = time_periods_in_window_range.tolist()
+  if isinstance(timeline_slices, np.ndarray):
+    timeline_slices = timeline_slices.tolist()
   
-  # Count the number of skipgrams in each time frame
-  time_frame_skipgrams_counts = Counter(time_frame_skipgrams)
-  # Print the distribution
   stdout.print("Distribution of skipgrams in the time frame")
-  
   data_for_dataframe = {}
-  for time_frame, skipgrams_count in time_frame_skipgrams_counts.items():
-    data_for_dataframe[time_frame] = skipgrams_count
-    time_period = time_periods_in_window_range[time_frame]
-    stdout.print(f"Time period {time_period}: {skipgrams_count} skipgrams")
+  for time_slice in timeline_slices:
+    time_slice_idx = timeline_slices.index(time_slice)
+    data_for_dataframe[time_slice] = len(skipgrams_in_timeline[time_slice_idx])
+    skipgrams_count = len(set([tuple(v) for v in skipgrams_in_timeline[time_slice_idx]]))
+    stdout.print(f"Time period {time_slice}: {skipgrams_count} skipgrams")
 
-  skipgrams_df = pd.DataFrame(data_for_dataframe, index=[0])
-  skipgrams_df.plot.bar(
+  skipgram_df = pd.DataFrame(data_for_dataframe, index=[0])
+  skipgram_df.plot.bar(
     xlabel="Week of Year",
     ylabel="No. of skipgrams",
     figsize=(20, 10), rot=0, )
 
-  return skipgrams_df
+  return skipgram_df
 
 
 def get_unique_column_values(
