@@ -308,6 +308,7 @@ def plot_dynamic_activity_embeddings(
   activities: ArrayLike, 
   trained_model: ty.Any, 
   act2abbr: dict,
+  time_slice_idx: int = -1,
   **kwargs) -> None:
   pyplot_module = kwargs.get('pyplot_module', None)
   if pyplot_module is None:
@@ -322,7 +323,8 @@ def plot_dynamic_activity_embeddings(
   va = kwargs.get('va', 'bottom')
   
   plt.figure(figsize=figsize)
-  for label, x, y in get_annotated_coordinates_from_model(activities, trained_model, act2abbr):
+  for label, x, y in get_annotated_coordinates_from_model(
+    activities, trained_model, act2abbr, time_slice_idx=time_slice_idx):
     plt.scatter(x, y)
     plt.annotate(
       label,
