@@ -688,7 +688,9 @@ def build_diachronic_dataframe(
     contributor_to_activity=contributor_group_idx,
     maintainer_to_activity=maintainer_group_idx)
   
-  rel_activities = np.union1d(maintainer_activities, contributor_activities)
+  rel_activities = maintainer_activities + contributor_activities
+  
+  print(rel_activities[:3])
   
   @with_status(console=the_console, prefix='Build diachronic dataframe')
   def generate_diachronic_df(df: pd.DataFrame, r_activities: ArrayLike, a_name_col: str) -> tuple:
