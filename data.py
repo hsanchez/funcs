@@ -688,6 +688,7 @@ def build_diachronic_dataframe(
     contributor_to_activity=contributor_group_idx,
     maintainer_to_activity=maintainer_group_idx)
   
+  print(maintainer_activities[:3], contributor_activities[:3])
   rel_activities = maintainer_activities + contributor_activities
   
   print(rel_activities[:3])
