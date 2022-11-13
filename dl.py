@@ -219,6 +219,12 @@ def learn_dynamic_activity_model(
   if isinstance(timeline_slices, np.ndarray):
     timeline_slices = timeline_slices.tolist()
 
+  # NOTE: If we have, for each time_slice (e.g., week), a stored
+  # trained model (e.g., pickled model in some file), then we should load
+  # it before we start their training. This includes its report, which
+  # we can save in a separate csv file.
+  
+  # The following code learns a new model for each time_slice.
   model_at_time_slice = []
   metrics = []
   for time_slice in timeline_slices:
@@ -226,8 +232,15 @@ def learn_dynamic_activity_model(
     for epoch in range(epochs):
       criterion = nn.CrossEntropyLoss()
       
-      avg_loss_train_week, lr = train_fn(model, train_data, optimizer, criterion, epoch, accelerator, suffix=f"{time_slice}...")
-      avg_loss_eval_week, acc = test_fn(model, test_data, criterion, epoch, accelerator, suffix=f"{time_slice}...")
+      avg_loss_train_week, lr = train_fn(
+        model, train_data,
+        optimizer, criterion,
+        epoch, accelerator,
+        suffix=f"{time_slice}...")
+      avg_loss_eval_week, acc = test_fn(
+        model, test_data,
+        criterion, epoch,
+        accelerator, suffix=f"{time_slice}...")
       
       metrics += [{
         'Epoch': epoch,
@@ -236,7 +249,6 @@ def learn_dynamic_activity_model(
         'LearningRate': lr, 
         'Accuracy': acc}]
     model_at_time_slice += [model]
-
   report = TrainingReport(metrics=pd.DataFrame.from_dict(metrics))
   return model_at_time_slice, report
 
