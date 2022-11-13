@@ -332,7 +332,7 @@ def get_unique_column_values(
 
 
 def timeline_slicing(
-  timeline: pd.DataFrame,
+  diachronic_df: pd.DataFrame,
   target_column: str,
   datetime_col: str = 'sent_time',
   window_size: int = 4,
@@ -360,7 +360,7 @@ def timeline_slicing(
   # window size
   ws = pd.DateOffset(hours=window_size)
   
-  by_period_series = get_time_period_series(timeline, by_period, datetime_col)
+  by_period_series = get_time_period_series(diachronic_df, by_period, datetime_col)
   start_period = by_period_series.min()
   end_period = by_period_series.max() + 1
   
@@ -374,7 +374,7 @@ def timeline_slicing(
     task = progress.add_task(f"Partitioning {n_periods} periods ...", total=n_periods)
     for time_period in tp_in_window_range:
       # 1. get data-frame partition
-      tp_df = timeline.loc[by_period_series == time_period]
+      tp_df = diachronic_df.loc[by_period_series == time_period]
       # 2. get unique activities list for activity column
       tp_unique_vals = get_unique_column_values(input_df=tp_df, target_column=target_column)
       # 3. get skipgrams for the current time period
