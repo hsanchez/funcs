@@ -8,7 +8,7 @@ import pandas as pd
 
 from .arrays import get_mode_in_array
 from .console import new_progress_display, quiet_stderr, stderr
-from .data import (_check_input_dataframe, get_records_in_time_window)
+from .data import (get_records_in_time_window)
 from .modules import install as install_package
 
 try:
@@ -136,7 +136,6 @@ def generate_skipgrams(
   target_col: str,
   progress_bar: bool = True,
   datetime_column: str = 'sent_time') -> ty.List[tuple]:
-  _check_input_dataframe(input_df)
   
   the_console = stderr
   if not progress_bar:
