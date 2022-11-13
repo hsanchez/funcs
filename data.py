@@ -674,8 +674,8 @@ def build_diachronic_dataframe(
       # thx to https://stackoverflow.com/questions/62280648
       irrelevant_activities = []
       for del_contrib_name in np.setdiff1d(contr_group, matched_contributors):
-        irrelevant_activities.extend(contr_group_idx[del_contrib_name])
         if del_contrib_name in contr_group_idx:
+          irrelevant_activities.extend(contr_group_idx[del_contrib_name])
           del contr_group_idx[del_contrib_name]
 
       if len(matched_contributors) == 0:
