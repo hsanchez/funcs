@@ -166,20 +166,17 @@ class TrainingReport:
       raise ValueError("act2abbr is empty")
     
     activities = np.array([a for a in act2abbr])
+    time_slice_idx = self.timeline_slices.index(time_slice)
     
     if self.diachronic_model is None:
-      plot_dynamic_activity_embeddings(
-        activities, 
-        self.timeline_slice_models[self.timeline_slices.index(time_slice)],
-        act2abbr,
-        **kwargs)
+      activity_model = self.timeline_slice_models[self.timeline_slices.index(time_slice)]
     else:
-      plot_dynamic_activity_embeddings(
-        activities,
-        self.diachronic_model,
-        act2abbr, 
-        time_slice_idx=self.timeline_slices.index(time_slice),
-        **kwargs)
+      activity_model = self.diachronic_model
+      
+    coordinates = [(lbl, x, y) for lbl, x, y in get_annotated_coordinates_from_model(
+      activities, activity_model, 
+      act2abbr, time_slice_idx=time_slice_idx)]
+    plot_dynamic_activity_embeddings(coordinates, **kwargs)
 
 
 def set_random_seed(seed):

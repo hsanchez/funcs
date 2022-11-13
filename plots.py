@@ -9,7 +9,6 @@ from .arrays import ArrayLike
 from .modules import import_module
 from .modules import install as install_package
 from .nlp import split_txt
-from .dl import get_annotated_coordinates_from_model
 
 try:
   import scipy.cluster.hierarchy as shc
@@ -305,10 +304,7 @@ def make_dendrogram(*args, **kwargs):
 
 
 def plot_dynamic_activity_embeddings(
-  activities: ArrayLike, 
-  trained_model: ty.Any, 
-  act2abbr: dict,
-  time_slice_idx: int = -1,
+  annotated_coordinates: ArrayLike,
   **kwargs) -> None:
   pyplot_module = kwargs.get('pyplot_module', None)
   if pyplot_module is None:
@@ -323,8 +319,7 @@ def plot_dynamic_activity_embeddings(
   va = kwargs.get('va', 'bottom')
   
   plt.figure(figsize=figsize)
-  for label, x, y in get_annotated_coordinates_from_model(
-    activities, trained_model, act2abbr, time_slice_idx=time_slice_idx):
+  for label, x, y in annotated_coordinates:
     plt.scatter(x, y)
     plt.annotate(
       label,
