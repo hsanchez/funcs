@@ -123,6 +123,76 @@ def accelerate_model(
   return accelerations, accelerator
 
 
+def train_fn(model, train_data_loader, optimizer, criterion, epoch, accelerator, suffix='...'):
+  model.train()
+  fin_loss = 0.0
+  tk = tqdm(
+      train_data_loader,
+      desc = f"EPOCH [TRAIN] {epoch + 1} [WEEK] {suffix}",
+      disable=not accelerator.is_local_main_process,
+  )
+
+  total_samples = None
+  for t, data in enumerate(tk):
+    epoch_loss = 0
+    
+    if total_samples is None:
+      total_samples = len(data[0])
+    
+    for (x, y) in zip(data[0], data[1]):
+      optimizer.zero_grad()
+      out = model(x)
+      # print(out.shape, y.shape)
+      loss = criterion(out, y)
+      accelerator.backward(loss)
+      optimizer.step()
+      epoch_loss += loss.item()
+      
+      tk.set_postfix({
+          "loss": "%.6f" % float(epoch_loss / (t + 1)),
+          "LR": optimizer.param_groups[0]["lr"],
+      })
+    fin_loss += (epoch_loss * total_samples)
+  
+
+  return fin_loss / (len(train_data_loader) * total_samples), optimizer.param_groups[0]["lr"]
+
+
+def test_fn(model, test_data_loader, criterion, epoch, accelerator, suffix='...'):
+  model.eval()
+  fin_loss = 0.0
+  correct_ct = 0
+  tk = tqdm(
+      test_data_loader,
+      desc = f"EPOCH [TEST] {epoch + 1} [WEEK] {suffix}",
+      disable=not accelerator.is_local_main_process,
+  )
+
+  total_samples = None
+  with torch.no_grad():
+    for t, data in enumerate(tk):
+      epoch_loss = 0
+      if total_samples is None:
+        total_samples = len(data[0])
+      for (x, y) in zip(data[0], data[1]):
+        out = model(x)
+        loss = criterion(out, y)
+        epoch_loss += loss.item()
+
+        _, predicted = torch.max(out, 1)
+        if predicted[0] == y[0]:
+          correct_ct += 1
+        
+
+        tk.set_postfix({
+            "loss": "%.6f" % float(epoch_loss / (t + 1)),
+            "acc": "%.6f" % float((correct_ct / (t + 1)) * 1.0 * total_samples),
+        })
+      fin_loss += (epoch_loss * total_samples)
+    
+    return fin_loss / (len(test_data_loader) * total_samples), (correct_ct/(len(test_data_loader) * total_samples))*100
+
+
 def send_to_tensor(ctx, ctx2idx: dict, device=torch.device) -> torch.Tensor:
   """Send data to tensor."""
   indices = [ctx2idx[w] for w in ctx]
