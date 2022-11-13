@@ -384,6 +384,9 @@ def build_tsne_projection(
   neighbors = []
   center_points = []
   
+  if isinstance(time_slices, np.ndarray):
+    time_slices = time_slices.tolist()
+  
   for time_slice in time_slices:
     embedding = trained_model.embeddings[time_slices.index(time_slice)]
     embedding_norm = np.reshape(np.sqrt(np.sum(embedding**2, 1)),(embedding.shape[0], 1))
@@ -404,6 +407,9 @@ def build_tsne_projection(
   X_input = np.vstack(X_input)
   tsne_model = TSNE(n_components=n_components, metric='euclidean', init='pca')
   Z_input = tsne_model.fit_transform(X_input)
+  
+  if isinstance(neighbors, np.ndarray):
+    neighbors = neighbors.tolist()
   
   projection2D = Projection2D(Z=Z_input, N=neighbors, C=center_points)
   return dict({activity: projection2D})
@@ -481,6 +487,9 @@ def tracking_moving_activity(
   
   if 'x_shift' in kwargs:
     del kwargs['x_shift']
+  
+  if isinstance(time_slices, np.ndarray):
+    time_slices = time_slices.tolist()
   
   def get_marker_options(act: str, club_a: ty.Set[str], club_c: ty.Set[str]) -> ty.Tuple[str, float, bool]:
     is_ctx_act = True in [act in c for c in club_c]
