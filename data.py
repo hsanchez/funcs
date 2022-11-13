@@ -597,6 +597,9 @@ def build_diachronic_dataframe(
   the_console = stderr
   if quiet:
     the_console = quiet_stderr
+    
+  # make sure we do this
+  maintainer_df[maintainer_name_column] = maintainer_df[maintainer_name_column].str.replace(' ','_')
   
   @with_status(console=the_console, prefix='Fetch all activities')
   def fetch_activities(df: pd.DataFrame, cols: ty.Union[str, ArrayLike]) -> ArrayLike:
@@ -630,12 +633,12 @@ def build_diachronic_dataframe(
     # get unique maintainers
     m_group = []
     if prefixes is not None:
-      found_recs = np.unique([m for p in prefixes
+      found_recs = np.unique([str(m) for p in prefixes
                               for matches in get_str_records_match_substr(df, p, m_name_col) 
                               for m in matches if 'bot' not in m])
       m_group.extend(found_recs)
     else:
-      found_recs = np.unique([x for x in df[m_name_col].values if 'bot' not in x])
+      found_recs = np.unique([str(x) for x in df[m_name_col].values if 'bot' not in x])
       m_group.extend(found_recs)
     m_group = np.unique(m_group)
     return m_group
@@ -649,7 +652,10 @@ def build_diachronic_dataframe(
   maintainer_group_idx = {}
   contributor_group_idx = {}
   for dev_name in developers_group_idx:
-    if dev_name in maintainer_group:
+    dev_name_temp = dev_name.rsplit('_', 1)
+    if dev_name_temp:
+      dev_name_temp = dev_name_temp[0]
+    if dev_name_temp in maintainer_group:
       maintainer_group_idx[dev_name] = developers_group_idx[dev_name]
       maintainer_activities.extend(developers_group_idx[dev_name])
     else:
@@ -688,10 +694,7 @@ def build_diachronic_dataframe(
     contributor_to_activity=contributor_group_idx,
     maintainer_to_activity=maintainer_group_idx)
   
-  print(maintainer_activities[:3], contributor_activities[:3])
-  rel_activities = maintainer_activities + contributor_activities
-  
-  print(rel_activities[:3])
+  rel_activities = np.union1d(maintainer_activities, contributor_activities)
   
   @with_status(console=the_console, prefix='Build diachronic dataframe')
   def generate_diachronic_df(df: pd.DataFrame, r_activities: ArrayLike, a_name_col: str) -> tuple:
