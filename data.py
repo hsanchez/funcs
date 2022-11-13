@@ -590,7 +590,7 @@ def build_diachronic_dataframe(
   activity_name_column: str = 'triplet_two', 
   maintainer_prefixes: ArrayLike = None,
   contributor_prefixes: ArrayLike = None,
-  plot_summary: bool = False,
+  plot_summary: bool = True,
   quiet: bool = False) -> ty.Tuple[pd.DataFrame, BuildingReport]:
   
   the_console = stderr
