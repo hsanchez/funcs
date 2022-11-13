@@ -8,7 +8,6 @@ import pandas as pd
 
 from .arrays import get_mode_in_array
 from .console import new_progress_display, quiet_stderr, stderr
-from .data import (get_records_in_time_window)
 from .modules import install as install_package
 
 try:
@@ -157,8 +156,9 @@ def generate_skipgrams(
         s_time = row_a[datetime_column] - window_date_offset
         e_time = row_a[datetime_column] + window_date_offset
         
-        # get all members in time window
-        res_row_a = get_records_in_time_window(input_df, datetime_column, s_time, e_time)
+        res_row_a = input_df.loc[(input_df[datetime_column] >= s_time) & (input_df[datetime_column] <= e_time)]
+        # FIX: fixes a recursive dependency issue
+        # res_row_a = get_records_in_time_window(input_df, datetime_column, s_time, e_time)
         
         w_skipgrams = [(w, act_x) for act_x in res_row_a[target_col].tolist()]
         skipgrams.extend(w_skipgrams)
