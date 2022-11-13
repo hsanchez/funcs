@@ -96,7 +96,7 @@ class BuildingReport:
   metrics: pd.DataFrame = None
   diachronic_df: pd.DataFrame = None
   
-  def build_indices(self) -> ty.Tuple[dict, dict, dict, dict]:
+  def build_indices(self, target_column: str = 'triplet_two') -> ty.Tuple[dict, dict, dict, dict]:
     if self.contributor_activities is None or self.maintainer_activities is None:
       raise ValueError('Cannot build indices without activity data')
     
@@ -107,7 +107,7 @@ class BuildingReport:
     if self.diachronic_df is None:
       return act2idx, idx2act, {}, {}
     
-    name2abbr, abbr2name = build_txt_indices(self.diachronic_df)
+    name2abbr, abbr2name = build_txt_indices(self.diachronic_df, target_column)
     return act2idx, idx2act, name2abbr, abbr2name
 
 
