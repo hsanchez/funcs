@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from .arrays import get_mode_in_array
-from .console import new_progress_display, quiet_stderr, stderr
+from .console import new_progress_display, new_quiet_console, stderr
 from .modules import install as install_package
 
 try:
@@ -138,7 +138,7 @@ def generate_skipgrams(
   
   the_console = stderr
   if not progress_bar:
-    the_console = quiet_stderr
+    the_console = new_quiet_console()
   
   vocab_size = sum(1 for _ in vocab)
   skipgrams = []

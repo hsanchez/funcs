@@ -22,7 +22,6 @@ except ImportError:
 
 stdout = Console()
 stderr = Console(file=sys.stderr)
-quiet_stderr = Console(file=sys.stderr, quiet=True)
 
 
 def new_live_display(console: Console, screen: bool = False, auto_refresh: bool = False) -> Live:
@@ -30,6 +29,9 @@ def new_live_display(console: Console, screen: bool = False, auto_refresh: bool 
 
 def new_progress_display(console: Console) -> Progress:
   return Progress(console=console)
+
+def new_quiet_console() -> Console:
+  return Console(file=sys.stderr, quiet=True)
 
 if __name__ == "__main__":
   pass

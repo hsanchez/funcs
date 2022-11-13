@@ -9,7 +9,7 @@ from pandas.io.formats.style import Styler
 
 from .arrays import ArrayLike
 from .common import with_status
-from .console import quiet_stderr, stderr
+from .console import new_quiet_console, stderr
 from .data import (_check_input_dataframe, build_multi_index_dataframe,
                    build_single_row_dataframe, get_records_match_condition,
                    normalize_columns)
@@ -106,7 +106,7 @@ def factor_analysis(
   
   the_console = stderr
   if quiet:
-    the_console = quiet_stderr
+    the_console = new_quiet_console()
 
   # Metrics
   report = FactorAnalysisReport()
@@ -209,7 +209,7 @@ def roles_discovery(input_df: pd.DataFrame, plot_summary: bool = True, quiet: bo
   
   the_console = stderr
   if quiet:
-    the_console = quiet_stderr
+    the_console = new_quiet_console()
 
   cached_Z = kwargs.get('data', None)
   
@@ -289,7 +289,7 @@ def compute_role_change_intensity(
   
   the_console = stderr
   if quiet:
-    the_console = quiet_stderr
+    the_console = new_quiet_console()
   
   roles_df = roles_report.roles_data
   roles = roles_report.roles

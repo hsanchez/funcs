@@ -10,7 +10,7 @@ import numpy as np
 
 from .arrays import ArrayLike
 from .common import resolve_path, with_status
-from .console import new_progress_display, quiet_stderr, stderr, stdout
+from .console import new_progress_display, new_quiet_console, stderr, stdout
 from .modules import install as install_package
 from .nlp import generate_skipgrams, build_txt_indices
 
@@ -346,7 +346,7 @@ def timeline_slicing(
   if by_period not in ['year', 'week', 'day']:
     raise ValueError(f"Invalid value for by_period: {by_period}")
   
-  the_console = quiet_stderr
+  the_console = new_quiet_console()
   if progress_bar:
     the_console = stderr
 
@@ -427,7 +427,7 @@ def fast_read_and_append(
 
   import psutil as ps
   
-  the_console = quiet_stderr
+  the_console = new_quiet_console()
   if progress_bar:
     the_console = stderr
 
@@ -598,7 +598,7 @@ def build_diachronic_dataframe(
   
   the_console = stderr
   if quiet:
-    the_console = quiet_stderr
+    the_console = new_quiet_console()
     
   # make sure we do this
   maintainer_df[maintainer_name_column] = maintainer_df[maintainer_name_column].str.replace(' ','_')
@@ -748,7 +748,7 @@ def process_and_clean_dataframe(
   
   the_console = stderr
   if quiet:
-    the_console = quiet_stderr
+    the_console = new_quiet_console()
   
   df = input_df.copy()
   

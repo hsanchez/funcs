@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from .arrays import ArrayLike, multidimensional_shifting, all_but_the_top
 from .common import take
-from .console import new_progress_display, quiet_stderr, stderr
+from .console import new_progress_display, new_quiet_console, stderr
 from .modules import install as install_package
 from .plots import plot_dynamic_activity_embeddings
 
@@ -401,7 +401,7 @@ def get_train_test_data_per_period(
   txt2dict: dict,
   progress_bar: bool = False) -> ArrayLike:
   
-  the_console = quiet_stderr
+  the_console = new_quiet_console()
   if progress_bar:
     the_console = stderr
   
