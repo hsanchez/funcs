@@ -298,7 +298,7 @@ def normalize_columns(
   return df
 
 
-def describe_timeline(skipgrams_in_timeline: np.ndarray, timeline_slices: ArrayLike) -> pd.DataFrame:
+def describe_timeline(skipgrams_in_timeline: np.ndarray, timeline_slices: ArrayLike, plot_summary: bool = True) -> pd.DataFrame:
   """Prints the distribution of the skipgrams in the time frame"""
   if isinstance(timeline_slices, np.ndarray):
     timeline_slices = timeline_slices.tolist()
@@ -312,10 +312,11 @@ def describe_timeline(skipgrams_in_timeline: np.ndarray, timeline_slices: ArrayL
     stdout.print(f"Time period {time_slice}: {skipgrams_count} skipgrams")
 
   skipgram_df = pd.DataFrame(data_for_dataframe, index=[0])
-  skipgram_df.plot.bar(
-    xlabel="Week of Year",
-    ylabel="No. of skipgrams",
-    figsize=(20, 10), rot=0, )
+  if plot_summary:
+    skipgram_df.plot.bar(
+      xlabel="Week of Year",
+      ylabel="No. of skipgrams",
+      figsize=(20, 10), rot=0, )
 
   return skipgram_df
 
