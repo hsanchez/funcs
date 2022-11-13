@@ -618,7 +618,7 @@ def build_diachronic_dataframe(
       if contrib_name not in dev_group_idx:
         dev_group_idx[contrib_name] = []
       if 'bot' not in act_name:
-        dev_group_idx.append(act_name)
+        dev_group_idx[contrib_name].append(act_name)
       contrib_group.append(contrib_name)
     contrib_group = np.unique(contrib_group)
     return contrib_group, dev_group_idx
