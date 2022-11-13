@@ -12,7 +12,7 @@ from .arrays import ArrayLike
 from .common import resolve_path, with_status
 from .console import new_progress_display, quiet_stderr, stderr, stdout
 from .modules import install as install_package
-from .nlp import generate_skipgrams
+from .nlp import generate_skipgrams, build_txt_indices
 
 try:
   from sklearn.preprocessing import OrdinalEncoder
@@ -94,12 +94,21 @@ class BuildingReport:
   maintainer_to_activity: dict = None
   contributor_to_activity: dict = None
   metrics: pd.DataFrame = None
+  diachronic_df: pd.DataFrame = None
   
-  def build_indices(self) -> ty.Tuple[dict, dict]:
+  def build_indices(self) -> ty.Tuple[dict, dict, dict, dict]:
+    if self.contributor_activities is None or self.maintainer_activities is None:
+      raise ValueError('Cannot build indices without activity data')
+    
     all_acts = np.unique(np.concatenate([self.contributor_activities, self.maintainer_activities]))
     act2idx = {act: idx for idx, act in enumerate(all_acts)}
     idx2act = {idx: act for idx, act in enumerate(all_acts)}
-    return act2idx, idx2act
+    
+    if self.diachronic_df is None:
+      return act2idx, idx2act, {}, {}
+    
+    name2abbr, abbr2name = build_txt_indices(self.diachronic_df)
+    return act2idx, idx2act, name2abbr, abbr2name
 
 
 def _check_input_dataframe(input_df: pd.DataFrame) -> None:
@@ -581,38 +590,57 @@ def build_diachronic_dataframe(
   activity_name_column: str = 'triplet_two', 
   maintainer_prefixes: ArrayLike = None,
   contributor_prefixes: ArrayLike = None,
-  plot_summary: bool = False) -> ty.Tuple[pd.DataFrame, BuildingReport]:
+  plot_summary: bool = False,
+  quiet: bool = False) -> ty.Tuple[pd.DataFrame, BuildingReport]:
   
-  all_activities = get_unique_column_values(
-    activity_df, target_column=[activity_name_column, contributor_name_column])
+  the_console = stderr
+  if quiet:
+    the_console = quiet_stderr
   
-  if len(all_activities) == 0:
-    raise ValueError('No activities found in the input dataframe!')
+  @with_status(console=the_console, prefix='Fetch all activities')
+  def fetch_activities(df: pd.DataFrame, cols: ty.Union[str, ArrayLike]) -> ArrayLike:
+    the_activities = get_unique_column_values(df, target_column=cols)
+    if len(the_activities) == 0:
+      raise ValueError('No activities found in the input dataframe!')
+    return the_activities
   
-  # get the unique contributors and their
-  contributor_group = []
-  developers_group_idx = {}
-  for act_arr in all_activities:
-    assert len(act_arr) == 2
-    act_name, contrib_name = act_arr[0], act_arr[1]
-    if contrib_name not in developers_group_idx:
-      developers_group_idx[contrib_name] = []
-    if 'bot' not in act_name:
-      developers_group_idx.append(act_name)
-    contributor_group.append(contrib_name)
-  contributor_group = np.unique(contributor_group)
+  all_activities = fetch_activities(activity_df, [activity_name_column, contributor_name_column])
   
-  # get unique maintainers
-  maintainer_group = []
-  if maintainer_prefixes is not None:
-    found_recs = np.unique([m for p in maintainer_prefixes
-                            for matches in get_str_records_match_substr(maintainer_df, p, maintainer_name_column) 
-                            for m in matches if 'bot' not in m])
-    maintainer_group.extend(found_recs)
-  else:
-    found_recs = np.unique([x for x in maintainer_df[maintainer_name_column].values if 'bot' not in x])
-    maintainer_group.extend(found_recs)
-  maintainer_group = np.unique(maintainer_group)
+  @with_status(console=the_console, prefix='Process all activities')
+  def process_groups_and_indices(activities: ArrayLike) -> tuple:  
+    # get the unique contributors and their
+    contrib_group = []
+    dev_group_idx = {}
+    for act_arr in activities:
+      assert len(act_arr) == 2
+      act_name, contrib_name = act_arr[0], act_arr[1]
+      if contrib_name not in dev_group_idx:
+        dev_group_idx[contrib_name] = []
+      if 'bot' not in act_name:
+        dev_group_idx.append(act_name)
+      contrib_group.append(contrib_name)
+    contrib_group = np.unique(contrib_group)
+    return contrib_group, dev_group_idx
+  
+  contributor_group, developers_group_idx = process_groups_and_indices(all_activities)
+ 
+  @with_status(console=the_console, prefix='Process maintainers group') 
+  def process_maintainer_group(df: pd.DataFrame, prefixes: ArrayLike, m_name_col: str) -> ArrayLike:
+    # get unique maintainers
+    m_group = []
+    if prefixes is not None:
+      found_recs = np.unique([m for p in prefixes
+                              for matches in get_str_records_match_substr(df, p, m_name_col) 
+                              for m in matches if 'bot' not in m])
+      m_group.extend(found_recs)
+    else:
+      found_recs = np.unique([x for x in df[m_name_col].values if 'bot' not in x])
+      m_group.extend(found_recs)
+    m_group = np.unique(m_group)
+    return m_group
+  
+  maintainer_group = process_maintainer_group(
+    maintainer_df, maintainer_prefixes, maintainer_name_column)
 
   # distinguish between maintainers and contributors
   maintainer_activities = []
@@ -630,38 +658,63 @@ def build_diachronic_dataframe(
   maintainer_activities = np.unique(maintainer_activities)
   contributor_activities = np.unique(contributor_activities)
   
+  if contributor_prefixes is not None:
+    @with_status(console=the_console, prefix="Filter contributors")
+    def filter_contributors(prefixes, contr_group, contr_group_idx, contrib_activities) -> tuple:    
+      # reduce the contributor group to the ones that match the prefixes
+      matched_contributors = np.unique([contrib_name for p in prefixes 
+                                        for contrib_name in contr_group if p in contrib_name])
+      # thx to https://stackoverflow.com/questions/62280648
+      irrelevant_activities = []
+      for del_contrib_name in np.setdiff1d(contr_group, matched_contributors):
+        irrelevant_activities.extend(contr_group_idx[del_contrib_name])
+        del contr_group_idx[del_contrib_name]
+
+      if len(matched_contributors) == 0:
+        raise ValueError('No contributors found in the input dataframe!')
+      
+      matched_activities = np.setdiff1d(contrib_activities, irrelevant_activities)
+      if len(matched_activities) == 0:
+        raise ValueError('No activities found in the input dataframe!')
+      
+      return matched_contributors, contr_group_idx, matched_activities
+    contributor_group, contributor_group_idx, contributor_activities = filter_contributors(
+      contributor_prefixes, contributor_group, contributor_group_idx, contributor_activities)
+  
   report = BuildingReport(
     contributor_activities=contributor_activities,
     maintainer_activities=maintainer_activities,
     contributor_to_activity=contributor_group_idx,
     maintainer_to_activity=maintainer_group_idx)
   
-  if contributor_prefixes is not None:
-    # reduce the contributor group to the ones that match the prefixes
-    contributor_activities = np.unique([act for p in contributor_prefixes for act in contributor_activities if p in act]) 
-    if len(contributor_activities) == 0:
-      raise ValueError('No contributors found in the input dataframe!')
-  
   rel_activities = np.union1d(maintainer_activities + contributor_activities)
   
-  diachronic_df_updated = activity_df[['sender_id', 'sent_time', activity_name_column]].copy()
-  drop_records_match_condition(
-    diachronic_df_updated,
-    # retain only relevant activities
-    lambda x: ~x[activity_name_column].isin(rel_activities), 
-    inplace=True)
+  @with_status(console=the_console, prefix='Build diachronic dataframe')
+  def generate_diachronic_df(df: pd.DataFrame, r_activities: ArrayLike, a_name_col: str) -> tuple:
+    diachronic_df = df[['sender_id', 'sent_time', a_name_col]].copy()
+    drop_records_match_condition(
+      diachronic_df,
+      # retain only relevant activities
+      lambda x: ~x[a_name_col].isin(r_activities), 
+      inplace=True)
   
-  diachronic_df_updated['sent_time'] = pd.to_datetime(diachronic_df_updated['sent_time'], utc=True)
-  start_period = diachronic_df_updated.sent_time.min()
-  end_period = diachronic_df_updated.sent_time.max()
+    diachronic_df['sent_time'] = pd.to_datetime(diachronic_df['sent_time'], utc=True)
+    start_period = diachronic_df.sent_time.min()
+    end_period = diachronic_df.sent_time.max()
+    
+    metrics_dict = {
+      'StartPeriod': start_period,
+      'EndPeriod': end_period}
+    
+    return diachronic_df, metrics_dict
   
-  metrics = {
-    'ContributorActivityCount' : len(contributor_activities),
-    'MaintainerActivityCount' : len(maintainer_activities),
-    'ContributorCount' : len(contributor_group),
-    'MaintainerCount' : len(maintainer_group), 
-    'StartPeriod' : start_period,
-    'EndPeriod' : end_period}
+  diachronic_df_updated, metrics = generate_diachronic_df(
+    activity_df, rel_activities, activity_name_column)
+  
+  metrics['ContributorActivityCount'] = len(contributor_activities)
+  metrics['MaintainerActivityCount'] = len(maintainer_activities)
+  metrics['ContributorCount'] = len(contributor_group)
+  metrics['MaintainerCount'] = len(maintainer_group)
   
   metrics = build_single_row_dataframe(metrics)
   report  = replace(report, metrics=metrics)
@@ -669,6 +722,8 @@ def build_diachronic_dataframe(
   if plot_summary:
     freq_activity = diachronic_df_updated.groupby(diachronic_df_updated.sent_time.dt.isocalendar().week).size()
     freq_activity.plot.bar(log=True, xlabel="Week of Year",  ylabel="No. of records",  figsize=(20, 10), rot=0)
+  
+  report = replace(report, diachronic_df=diachronic_df_updated)
   
   return diachronic_df_updated, report
 
