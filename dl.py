@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 import typing as ty
+from dataclasses import dataclass, field, replace
 
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 from .arrays import ArrayLike, multidimensional_shifting
@@ -71,6 +73,16 @@ class SkipgramModel(nn.Module):
       act_vec = torch.tensor([self.act2idx[activity]])
     return self.embedding(act_vec).view(1,-1)
 
+@dataclass(frozen=True)
+class Acceleration:
+  accelerator: Accelerator = None
+  steps: ty.List[tuple] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class TrainingReport:
+  metrics: pd.DataFrame = None
+
 
 def set_random_seed(seed):
   """Set random seed for reproducibility."""
@@ -78,15 +90,16 @@ def set_random_seed(seed):
 
 
 def get_dataloaders_per_time_slice(
-  train_test_by_time_slice: ty.List[tuple], 
+  train_test_data_by_time_slice: ty.List[tuple], 
   time_slices: ArrayLike, 
   batch_size: int = 10) -> ty.List[tuple]:
+
   if isinstance(time_slices, np.ndarray):
     time_slices = time_slices.tolist()
 
   train_test_dataloaders_by_time_slice = []
-  for week in time_slices:
-    train_w, test_w = train_test_by_time_slice[time_slices.index(week)]
+  for time_slice in time_slices:
+    train_w, test_w = train_test_data_by_time_slice[time_slices.index(time_slice)]
 
     train_dataset = SkipgramData(train_w)
     test_dataset  = SkipgramData(test_w)
@@ -95,6 +108,8 @@ def get_dataloaders_per_time_slice(
     test_data_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
     train_test_dataloaders_by_time_slice.append((train_data_loader, test_data_loader))
+    
+  # return data snapshots wrapped in torch dataloaders
   return train_test_dataloaders_by_time_slice
 
 
@@ -104,7 +119,7 @@ def accelerate_model(
   act2idx: dict, 
   embedding_size: int = 120, 
   learn_rate: float = 0.001, 
-  accelerator: Accelerator = Accelerator()) -> ty.Tuple[Accelerator, ty.List[tuple]]:
+  accelerator: Accelerator = Accelerator()) -> Acceleration:
   
   if isinstance(timeline_slices, np.ndarray):
     timeline_slices = timeline_slices.tolist()
@@ -120,16 +135,16 @@ def accelerate_model(
       test_data_loader)
     accelerations += [(model, optimizer, train_data, test_data)]
   
-  return accelerations, accelerator
+  return Acceleration(accelerator, accelerations)
 
 
 def train_fn(model, train_data_loader, optimizer, criterion, epoch, accelerator, suffix='...'):
   model.train()
   fin_loss = 0.0
   tk = tqdm(
-      train_data_loader,
-      desc = f"EPOCH [TRAIN] {epoch + 1} [WEEK] {suffix}",
-      disable=not accelerator.is_local_main_process,
+    train_data_loader,
+    desc = f"EPOCH [TRAIN] {epoch + 1} [WEEK] {suffix}",
+    disable=not accelerator.is_local_main_process,
   )
 
   total_samples = None
@@ -163,9 +178,9 @@ def test_fn(model, test_data_loader, criterion, epoch, accelerator, suffix='...'
   fin_loss = 0.0
   correct_ct = 0
   tk = tqdm(
-      test_data_loader,
-      desc = f"EPOCH [TEST] {epoch + 1} [WEEK] {suffix}",
-      disable=not accelerator.is_local_main_process,
+    test_data_loader,
+    desc = f"EPOCH [TEST] {epoch + 1} [WEEK] {suffix}",
+    disable=not accelerator.is_local_main_process,
   )
 
   total_samples = None
@@ -191,6 +206,39 @@ def test_fn(model, test_data_loader, criterion, epoch, accelerator, suffix='...'
       fin_loss += (epoch_loss * total_samples)
     
     return fin_loss / (len(test_data_loader) * total_samples), (correct_ct/(len(test_data_loader) * total_samples))*100
+
+
+def learn_dynamic_activity_model(
+  acceleration_config: Acceleration, 
+  timeline_slices: ArrayLike,
+  epochs: int) -> ty.Tuple[ArrayLike, TrainingReport]:
+  
+  accelerations = acceleration_config.steps
+  accelerator = acceleration_config.accelerator
+  
+  if isinstance(timeline_slices, np.ndarray):
+    timeline_slices = timeline_slices.tolist()
+
+  model_at_time_slice = []
+  metrics = []
+  for time_slice in timeline_slices:
+    model, optimizer, train_data, test_data = accelerations[timeline_slices.index(time_slice)]
+    for epoch in range(epochs):
+      criterion = nn.CrossEntropyLoss()
+      
+      avg_loss_train_week, lr = train_fn(model, train_data, optimizer, criterion, epoch, accelerator, suffix=f"{time_slice}...")
+      avg_loss_eval_week, acc = test_fn(model, test_data, criterion, epoch, accelerator, suffix=f"{time_slice}...")
+      
+      metrics += [{
+        'Epoch': epoch,
+        'AverageLossTrain': avg_loss_train_week,
+        'AverageLossEval': avg_loss_eval_week, 
+        'LearningRate': lr, 
+        'Accuracy': acc}]
+    model_at_time_slice += [model]
+
+  report = TrainingReport(metrics=pd.DataFrame.from_dict(metrics))
+  return model_at_time_slice, report
 
 
 def send_to_tensor(ctx, ctx2idx: dict, device=torch.device) -> torch.Tensor:
