@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
 import typing as ty
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from .arrays import ArrayLike, multidimensional_shifting
+from .arrays import ArrayLike, multidimensional_shifting, all_but_the_top
 from .common import take
 from .console import new_progress_display, quiet_stderr, stderr
 from .modules import install as install_package
@@ -35,6 +35,20 @@ except ImportError:
   install_package('accelerate')
   from accelerate import Accelerator
   from accelerate import utils as accelerate_utils
+
+
+try:
+  from scipy.spatial import procrustes
+except ImportError:
+  install_package('scipy')
+  from scipy.spatial import procrustes
+
+
+try:
+  from sklearn.metrics.pairwise import cosine_similarity as sim
+except ImportError:
+  install_package('scikit-learn')
+  from sklearn.metrics.pairwise import cosine_similarity as sim
 
 
 # defining the Dataset class
@@ -76,16 +90,53 @@ class SkipgramModel(nn.Module):
 
 
 class AlignedW2V:
-  def __init__(self, act2idx: dict, idx2act: dict, post_process_models: bool = True, n_principal_components: int = 10) -> None:
+  def __init__(
+    self, act2idx: dict, 
+    idx2act: dict, 
+    post_process_models: bool = True, 
+    n_principal_components: int = 10) -> None:
     self.embeddings = []
     self.act2idx = act2idx
     self.idx2act = idx2act
     self.post_process_models = post_process_models
     self.n_principal_components = n_principal_components
   
-  def fit():
-    # TODO
-    pass
+  def fit(self, timeline_slices: ArrayLike, timeline_slice_models: ArrayLike):
+    if isinstance(timeline_slices, np.ndarray):
+      timeline_slices = timeline_slices.tolist()
+    
+    for time_slice in timeline_slices:
+      time_slice_model = timeline_slice_models[timeline_slices.index(time_slice)]
+      activity_embedding = np.array([get_tensor_data(time_slice_model.get_embedding(act))[0]
+                                     for act in self.act2idx])
+      if self.post_process_models and len(activity_embedding) > 1:
+        activity_embedding = all_but_the_top(
+          activity_embedding,
+          n_principal_components=self.n_principal_components)
+      self.embeddings.append(activity_embedding)
+    # alignment using the 'Procrustes Orthogonal' transformation
+    for k in range(1, len(self.embeddings)):
+      self.embeddings[k-1], self.embeddings[k], _ = procrustes(
+        self.embeddings[k-1], self.embeddings[k])
+  
+  def get_dynamic_embeddings(self, activity: str, time_slice_idx: int = -1) -> ArrayLike:
+    activity_idx = self.act2idx[activity]
+    if time_slice_idx != -1:
+      return self.embeddings[time_slice_idx][activity_idx]
+    return np.array([self.embeddings[t][activity_idx] for t in range(len(self.embeddings))])
+  
+  def k_nearest(self, activity: str, k: int = 5, time_slice_idx: int = -1) -> np.ndarray:
+    activity_idx = self.act2idx[activity]
+    if time_slice_idx != -1:
+      act_emb = self.embeddings[time_slice_idx][activity_idx]
+      sims = sim(act_emb.reshape(1, -1), self.embeddings[time_slice_idx]).reshape(-1)
+      arg = np.argsort(sims)[-k - 1 : -1][::-1]
+      neighbors = np.array([(self.idx2act[ind], sims[ind]) for ind in arg])
+      return neighbors
+    else:
+      neighbors = np.array([self.k_nearest(activity, k, t)
+                            for t in range(len(self.embeddings))])
+      return neighbors
 
 
 @dataclass(frozen=True)
@@ -98,21 +149,37 @@ class Acceleration:
 class TrainingReport:
   metrics: pd.DataFrame = None
   timeline_slices: list = field(default_factory=list)
-  # NOTE: we keep a copy of this in order to avoid 
+  # NOTE: Keep this around to avoid 
   # passing unnecessary params to plot_activity_landscape
-  activity_models: list = field(default_factory=list)
+  timeline_slice_models: list = field(default_factory=list)
+  diachronic_model: AlignedW2V = None
   
-  def plot_activity_landscape(self, time_slice: int, act2abbr: dict, **kwargs) -> None:
+  def plot_activity_embeddings(
+    self,
+    # e.g., week
+    time_slice: int,
+    # activity name to its abbreviation
+    act2abbr: dict,
+    # plot options
+    **kwargs) -> None:
     if len(act2abbr) == 0:
       raise ValueError("act2abbr is empty")
     
     activities = np.array([a for a in act2abbr])
     
-    plot_dynamic_activity_embeddings(
-      activities, 
-      self.activity_models[self.timeline_slices.index(time_slice)],
-      act2abbr,
-      **kwargs)
+    if self.diachronic_model is None:
+      plot_dynamic_activity_embeddings(
+        activities, 
+        self.timeline_slice_models[self.timeline_slices.index(time_slice)],
+        act2abbr,
+        **kwargs)
+    else:
+      plot_dynamic_activity_embeddings(
+        activities,
+        self.diachronic_model,
+        act2abbr, 
+        time_slice_idx=self.timeline_slices.index(time_slice),
+        **kwargs)
 
 
 def set_random_seed(seed):
@@ -122,15 +189,15 @@ def set_random_seed(seed):
 
 def get_dataloaders_per_time_slice(
   train_test_data_by_time_slice: ty.List[tuple], 
-  time_slices: ArrayLike, 
+  timeline_slices: ArrayLike, 
   batch_size: int = 10) -> ty.List[tuple]:
 
-  if isinstance(time_slices, np.ndarray):
-    time_slices = time_slices.tolist()
+  if isinstance(timeline_slices, np.ndarray):
+    timeline_slices = timeline_slices.tolist()
 
   train_test_dataloaders_by_time_slice = []
-  for time_slice in time_slices:
-    train_w, test_w = train_test_data_by_time_slice[time_slices.index(time_slice)]
+  for time_slice in timeline_slices:
+    train_w, test_w = train_test_data_by_time_slice[timeline_slices.index(time_slice)]
 
     train_dataset = SkipgramData(train_w)
     test_dataset  = SkipgramData(test_w)
@@ -242,7 +309,10 @@ def test_fn(model, test_data_loader, criterion, epoch, accelerator, suffix='...'
 def learn_dynamic_activity_model(
   acceleration_config: Acceleration, 
   timeline_slices: ArrayLike,
-  epochs: int) -> ty.Tuple[ArrayLike, TrainingReport]:
+  act2idx: dict, idx2act: dict,
+  epochs: int,
+  post_process_models: bool = True,
+  n_principal_components: int = 10) -> ty.Tuple[AlignedW2V, TrainingReport]:
   
   accelerations = acceleration_config.steps
   accelerator = acceleration_config.accelerator
@@ -256,7 +326,7 @@ def learn_dynamic_activity_model(
   # we can save in a separate csv file.
   
   # The following code learns a new model for each time_slice.
-  model_at_time_slice = []
+  timeline_slice_models = []
   metrics = []
   for time_slice in timeline_slices:
     model, optimizer, train_data, test_data = accelerations[timeline_slices.index(time_slice)]
@@ -279,14 +349,26 @@ def learn_dynamic_activity_model(
         'AverageLossEval': avg_loss_eval_week, 
         'LearningRate': lr, 
         'Accuracy': acc}]
-    model_at_time_slice += [model]
+    timeline_slice_models += [model]
+  
+  # Aligned activity models learned for each time_slice.
+  dynamic_model = AlignedW2V(
+    # activity vocabulary
+    act2idx=act2idx,
+    # inverse activity vocabulary
+    idx2act=idx2act, 
+    post_process_models=post_process_models,
+    n_principal_components=n_principal_components)
+  
+  dynamic_model.fit(timeline_slices, timeline_slice_models)
   
   report = TrainingReport(
     metrics=pd.DataFrame.from_dict(metrics),
     timeline_slices=timeline_slices,
-    activity_models=model_at_time_slice)
+    timeline_slice_models=timeline_slice_models,
+    diachronic_model=dynamic_model)
   
-  return model_at_time_slice, report
+  return dynamic_model, report
 
 
 def send_to_tensor(ctx, ctx2idx: dict, device=torch.device) -> torch.Tensor:
@@ -341,16 +423,29 @@ def get_train_test_data_per_period(
   return np.array(train_test_data)
 
 
-def get_annotated_coordinates_from_model(activities: ArrayLike, trained_model: ty.Any, act2abbr: dict) -> tuple:
+def get_tensor_data(tensor: torch.Tensor) -> ArrayLike:
+  if torch.cuda.is_available():
+    return tensor.detach().cpu().numpy()
+  else:
+    return tensor.detach().data.numpy()
+
+
+def get_annotated_coordinates_from_model(
+  activities: ArrayLike, 
+  trained_model: ty.Any, 
+  act2abbr: dict, 
+  time_slice_idx: int = -1) -> ty.Iterator[tuple]:
   """Get coordinates from tensor."""
   for activity in activities:
-    embedding = trained_model.get_embedding(activity)
-    if torch.cuda.is_available():
-      x = embedding = embedding.detach().cpu().numpy()
-      y = embedding = embedding.detach().cpu().numpy()
+    if isinstance(trained_model, AlignedW2V):
+      embedding = trained_model.get_dynamic_embedding(activity, time_slice_idx)
+      x = embedding_data[0]
+      y = embedding_data[1]
     else:
-      x = embedding.detach().data.numpy()
-      y = embedding.detach().data.numpy()
+      embedding = trained_model.get_embedding(activity)
+      embedding_data = get_tensor_data(embedding)
+      x = embedding_data[0][0]
+      y = embedding_data[0][1]
     yield act2abbr[activity], x, y
 
 
