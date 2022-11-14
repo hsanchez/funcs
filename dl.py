@@ -368,28 +368,27 @@ def learn_dynamic_activity_model(
   return dynamic_model, report
 
 
-def send_to_tensor(ctx, ctx2idx: dict, device=torch.device) -> torch.Tensor:
+def send_to_tensor(ctx, ctx2idx: dict) -> torch.Tensor:
   """Send data to tensor."""
   indices = [ctx2idx[w] for w in ctx]
   tensor = torch.tensor(indices, dtype=torch.long)
-  return tensor.to(device)
+  return tensor
 
 
 def generate_random_train_test_data(
   skipgrams: ArrayLike,
   txt2dict: dict,
   test_size: float = 0.3,
-  sample_size: int = 1,
-  device=torch.device) -> ty.Tuple[ArrayLike, ArrayLike]:
+  sample_size: int = 1) -> ty.Tuple[ArrayLike, ArrayLike]:
   
   pivot = len(skipgrams) - int(len(skipgrams) * test_size)
   indices = multidimensional_shifting(len(skipgrams), sample_size, skipgrams).T[0]
   training_idx, test_idx = indices[:pivot], indices[pivot:]
   training, test = skipgrams[training_idx,:], skipgrams[test_idx,:]
   
-  training = [(send_to_tensor(x, txt2dict, device=device), send_to_tensor(y, txt2dict, device=device))
+  training = [(send_to_tensor(x, txt2dict), send_to_tensor(y, txt2dict))
               for x,y in training]
-  test = [(send_to_tensor(x, txt2dict, device=device), send_to_tensor(y, txt2dict, device=device))
+  test = [(send_to_tensor(x, txt2dict), send_to_tensor(y, txt2dict))
           for x,y in test]
   
   return training, test
