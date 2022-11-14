@@ -91,6 +91,17 @@ class SkipgramModel(nn.Module):
     return self.embedding(act_vec).view(1,-1)
 
 
+## XXX: this is a hack to get around the fact that the Accelerator class
+# Consider moving this to the SkigramModel class but not today
+def get_embedding_safely(embeddings, act_idx: int, device = None):
+  if device is not None:
+    act_vec = torch.tensor([act_idx]).to(device)
+  else:
+    act_vec = torch.tensor([act_idx])
+  return embeddings(act_vec).view(1,-1)
+
+
+
 class AlignedW2V:
   def __init__(
     self, act2idx: dict, 
@@ -103,16 +114,17 @@ class AlignedW2V:
     self.post_process_models = post_process_models
     self.n_principal_components = n_principal_components
   
-  def fit(self, timeline_slices: ArrayLike, timeline_slice_models: ArrayLike):
+  def fit(self, timeline_slices: ArrayLike, timeline_slice_models: ArrayLike, device=None):
     if isinstance(timeline_slices, np.ndarray):
       timeline_slices = timeline_slices.tolist()
     
     for time_slice in timeline_slices:
       time_slice_model = timeline_slice_models[timeline_slices.index(time_slice)]
+      activity_embedding = np.array([get_embedding_safely(time_slice_model.embedding, act, device).detach().cpu().numpy()[0] for act in self.act2idx])
       # if torch.cuda.is_available():
       #   activity_embedding = np.array([time_slice_model.get_embedding(act).detach().cpu().numpy()[0] for act in self.act2idx])
       # else:
-      activity_embedding = np.array([time_slice_model.get_embedding(act).detach().data.numpy()[0] for act in self.act2idx])
+      # activity_embedding = np.array([time_slice_model.get_embedding(act).detach().data.numpy()[0] for act in self.act2idx])
         # activity_embedding = np.array([get_tensor_data(time_slice_model.get_embedding(act))[0]
         #                              for act in self.act2idx])
       if self.post_process_models and len(activity_embedding) > 1:
@@ -363,7 +375,7 @@ def learn_dynamic_activity_model(
     post_process_models=post_process_models,
     n_principal_components=n_principal_components)
   
-  # dynamic_model.fit(timeline_slices, timeline_slice_models)
+  # dynamic_model.fit(timeline_slices, timeline_slice_models, device=accelerator.device)
   
   report = TrainingReport(
     metrics=pd.DataFrame.from_dict(metrics),
