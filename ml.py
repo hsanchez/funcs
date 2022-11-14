@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from pandas.io.formats.style import Styler
 
-from .arrays import ArrayLike
+from .arrays import ArrayLike, normalize_vector_norms
 from .common import with_status
 from .console import new_quiet_console, stderr
 from .data import (_check_input_dataframe, build_multi_index_dataframe,
@@ -369,6 +369,32 @@ def intra_cluster_variation(
     find_no_clusters_by_elbow_plot(k, wss, **kwargs)
 
   return wss
+
+
+def get_vector_norms(
+  target_activities: ArrayLike, 
+  timeline_slice_aligned_models: list, 
+  timeline_slices: ArrayLike, 
+  act2idx: dict) -> ArrayLike:
+  
+  # NOTE: timeline_slice_aligned_models is
+  # [dynamic_model.embeddings[t] for t in range(len(dynamic_model.embeddings))]
+  
+  aligned_activity_norms = []
+  for act in target_activities:
+    # norms = []
+    embeddings = []
+    for time_slice in timeline_slices:
+      act_emb_at_week = timeline_slice_aligned_models[timeline_slices.index(time_slice)][act2idx[act], :]
+      embeddings.append(act_emb_at_week)
+      # norm = np.linalg.norm(act_emb_at_week)
+      # norms.append(norm)
+    
+    # norms = np.array(norms)
+    # norms = norms / sum(norms)
+    aligned_activity_norms.append(normalize_vector_norms(embeddings))
+  return aligned_activity_norms
+
 
 
 def build_tsne_projection(

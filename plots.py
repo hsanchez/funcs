@@ -303,9 +303,7 @@ def make_dendrogram(*args, **kwargs):
   return ddata
 
 
-def plot_dynamic_activity_embeddings(
-  annotated_coordinates: ArrayLike,
-  **kwargs) -> None:
+def plot_dynamic_activity_embeddings(annotated_coordinates: ArrayLike, **kwargs) -> None:
   pyplot_module = kwargs.get('pyplot_module', None)
   if pyplot_module is None:
     plt = import_module('matplotlib.pyplot', 'matplotlib')
@@ -329,6 +327,38 @@ def plot_dynamic_activity_embeddings(
       ha=ha,
       va=va)
   plt.show()
+  
+  
+def plot_embedding_changes_in_vector_space(
+  target_activities: ArrayLike, 
+  aligned_activity_norms: ArrayLike, 
+  timeline_slices: ArrayLike, **kwargs) -> None:
+  
+  pyplot_module = kwargs.get('pyplot_module', None)
+  if pyplot_module is None:
+    plt = import_module('matplotlib.pyplot', 'matplotlib')
+  else:
+    plt = pyplot_module
+  
+  if isinstance(timeline_slices, np.ndarray):
+    timeline_slices = timeline_slices.tolist()
+  
+  figsize = kwargs.get('figsize', (15,10))
+  markersize = kwargs.get('markersize', 7)
+  plt.figure(figsize=figsize)
+  time_frames = [week for week in timeline_slices]
+  markers = ['+', 'o', 'x']
+  plt.clf()
+
+  for idx in range(len(aligned_activity_norms)):
+    norms = aligned_activity_norms[idx]
+    plt.plot(time_frames, norms, marker=markers[idx], markersize=markersize)
+
+  plt.legend(target_activities)
+  plt.xlabel('week')
+  plt.ylabel('activity norm')
+  plt.show()
+
 
 
 if __name__ == "__main__":
