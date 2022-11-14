@@ -16,6 +16,12 @@ except ImportError:
   install_package('scipy')
   import scipy.cluster.hierarchy as shc
 
+try:
+  import plotly.express as px
+except ImportError:
+  install_package('scipy')
+  import plotly.express as px
+
 
 def plot_RCI_distribution(input_df: pd.DataFrame, **kwargs) -> None:
   seaborn_module = kwargs.get('seaborn_module', None)
@@ -25,6 +31,18 @@ def plot_RCI_distribution(input_df: pd.DataFrame, **kwargs) -> None:
     sns = seaborn_module
   
   sns.histplot(input_df, **kwargs)
+  
+
+def plot_activity_distribution(input_df: pd.DataFrame, **kwargs) -> None:
+  # see https://plotly.com/python/bar-charts/
+  plotly_module = kwargs.get('plotly_module', None)
+  if plotly_module is None:
+    px = import_module('seaborn')
+  else:
+    px = plotly_module
+  
+  fig = px.bar(input_df, **kwargs)
+  fig.show()
 
 
 def scree_plot(input_df: pd.DataFrame, eigenvalues: ArrayLike, **kwargs) -> None:
@@ -284,6 +302,33 @@ def make_dendrogram(*args, **kwargs):
       plt.axhline(y=max_d, c='k')
   return ddata
 
+
+def plot_dynamic_activity_embeddings(
+  annotated_coordinates: ArrayLike,
+  **kwargs) -> None:
+  pyplot_module = kwargs.get('pyplot_module', None)
+  if pyplot_module is None:
+    plt = import_module('matplotlib.pyplot', 'matplotlib')
+  else:
+    plt = pyplot_module
+
+  figsize = kwargs.get('figsize', (15,10))
+  xytext = kwargs.get('figsize', (5, 2))
+  textcoords = kwargs.get('textcoords', 'offset points')
+  ha = kwargs.get('ha', 'right')
+  va = kwargs.get('va', 'bottom')
+  
+  plt.figure(figsize=figsize)
+  for label, x, y in annotated_coordinates:
+    plt.scatter(x, y)
+    plt.annotate(
+      label,
+      xy=(x, y),
+      xytext=xytext,
+      textcoords=textcoords,
+      ha=ha,
+      va=va)
+  plt.show()
 
 
 if __name__ == "__main__":

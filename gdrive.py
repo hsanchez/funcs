@@ -50,5 +50,12 @@ def get_dataset(dataset_name: str, is_local_file: bool, name2gdid: ty.Dict[str, 
   return file_path
 
 
+def get_dataset_files(
+  files: ty.List[str], 
+  is_local_file: bool, 
+  name2gdid: ty.Dict[str, str] = SIGNAL_DATASETS) -> ty.Dict[str, str]:
+  return dict({file: get_dataset(file, is_local_file, name2gdid) for file in files})
+
+
 if __name__ == "__main__":
   pass

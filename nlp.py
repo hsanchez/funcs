@@ -4,7 +4,10 @@ import re
 import typing as ty
 
 import numpy as np
+import pandas as pd
 
+from .arrays import get_mode_in_array
+from .console import new_progress_display, new_quiet_console, stderr
 from .modules import install as install_package
 
 try:
@@ -93,11 +96,75 @@ def split_txt(txt : str, upper: bool = False) -> str:
   return joined_txt
 
 
-def abbreviate_txt(txt : str, upper: bool = False) -> str:
-  joined_first_chars = ''.join(t[0] for t in txt.split())
+def abbreviate_txt(txt : str, upper: bool = False, sep: str = None) -> str:
+  def split_flavor(txt, sep = None):
+    if sep is None:
+      return txt.split()
+    else:
+      return txt.split(sep)
+  joined_first_chars = ''.join(t[0] for t in split_flavor(txt, sep))
   if upper:
     return joined_first_chars.upper()
   return joined_first_chars
+
+
+def build_txt_indices(input_df: pd.DataFrame, target_column: str) -> ty.Tuple[dict, dict]:
+  txt2abbr = {}
+  abbr2txt = {}
+  for val in input_df[target_column].values:
+    abbr = abbreviate_txt(val)
+    txt2abbr[val] = abbr
+    txts = abbr2txt.get(abbr, [])
+    txts.append(val)
+    abbr2txt[abbr] = txts
+  # txt resolution using mode
+  for key in abbr2txt.keys():
+    m = get_mode_in_array(abbr2txt[key])
+    if m is not None:
+      abbr2txt[key] = m
+    else:
+      # pick first one
+      abbr2txt[key] = abbr2txt[key][0]
+  return txt2abbr, abbr2txt
+
+
+def generate_skipgrams(
+  input_df: pd.DataFrame, 
+  vocab: ty.Iterable, 
+  window_date_offset: pd.DateOffset,
+  target_col: str,
+  progress_bar: bool = True,
+  datetime_column: str = 'sent_time') -> ty.List[tuple]:
+  
+  the_console = stderr
+  if not progress_bar:
+    the_console = new_quiet_console()
+  
+  vocab_size = sum(1 for _ in vocab)
+  skipgrams = []
+  with new_progress_display(console = the_console) as progress:
+    task = progress.add_task("Generating skipgrams ...", total=vocab_size)
+    for w in vocab:
+      # collect all records from the ACTIVITY_DF where triplet_one == a.
+      # note that an activity with the triple_one format is an activity relabeled 
+      # with **three** elements: 
+      #   original activity name + project name + email thread topology 
+      res_a = input_df.loc[input_df[target_col] == w]
+      # iterate over all res_a records and collect all records 
+      # that are within a time window
+      for _, row_a in res_a.iterrows():
+        s_time = row_a[datetime_column] - window_date_offset
+        e_time = row_a[datetime_column] + window_date_offset
+        
+        res_row_a = input_df.loc[(input_df[datetime_column] >= s_time) & (input_df[datetime_column] <= e_time)]
+        # FIX: fixes a recursive dependency issue
+        # res_row_a = get_records_in_time_window(input_df, datetime_column, s_time, e_time)
+        
+        w_skipgrams = [(w, act_x) for act_x in res_row_a[target_col].tolist()]
+        skipgrams.extend(w_skipgrams)
+        
+      progress.update(task, advance=1)
+  return skipgrams
 
 
 if __name__ == "__main__":
