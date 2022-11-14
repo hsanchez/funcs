@@ -46,9 +46,11 @@ except ImportError:
 
 try:
   from sklearn.metrics.pairwise import cosine_similarity as sim
+  from sklearn.model_selection import train_test_split
 except ImportError:
   install_package('scikit-learn')
   from sklearn.metrics.pairwise import cosine_similarity as sim
+  from sklearn.model_selection import train_test_split
 
 
 # defining the Dataset class
@@ -375,11 +377,46 @@ def send_to_tensor(ctx, ctx2idx: dict) -> torch.Tensor:
   return tensor
 
 
+def generate_train_test_data(
+  skipgrams_at_time_slice: ArrayLike, 
+  act2idx: dict, 
+  n_iters: int = 100, 
+  test_size: float = 0.3) -> ty.Tuple[ArrayLike, ArrayLike]:
+  X = skipgrams_at_time_slice[:]
+  
+  for _ in range(n_iters):
+    X = np.random.permutation(X)
+  
+  X = [list(s) for s in X]
+  X = [send_to_tensor(x, act2idx) for x in X]
+  X = [X[i * 2: (i + 1) * 2] for i in range(len(X))]
+  
+  samples = []
+  for xx in X:
+    if len(xx) == 0:
+      continue
+    elif len(xx) == 1:
+      samples.append((xx[0], xx[0]))
+    else:
+      samples.append((xx[0], xx[1]))
+
+  if len(samples) == 1:
+    # Instead of ignoring this record, we return the same
+    # sample as train, test data (no need for sklearn's train_test_split)
+    return samples, samples
+
+  train, test = train_test_split(samples, test_size=test_size)
+  return train, test
+
+
 def generate_random_train_test_data(
   skipgrams: ArrayLike,
   txt2dict: dict,
   test_size: float = 0.3,
   sample_size: int = 1) -> ty.Tuple[ArrayLike, ArrayLike]:
+
+  # NOTE: DO NOT USE THIS ONE. IT IS NOT WORKING PROPERLY.
+  # USE generate_train_test_data INSTEAD.
   
   pivot = len(skipgrams) - int(len(skipgrams) * test_size)
   indices = multidimensional_shifting(len(skipgrams), sample_size, skipgrams).T[0]
@@ -397,7 +434,7 @@ def generate_random_train_test_data(
 def get_train_test_data_per_period(
   sliced_skipgrams: ArrayLike, 
   time_slices: ArrayLike,
-  txt2dict: dict,
+  act2idx: dict,
   progress_bar: bool = False) -> ArrayLike:
   
   the_console = new_quiet_console()
@@ -411,8 +448,9 @@ def get_train_test_data_per_period(
   with new_progress_display(the_console) as progress:
     task = progress.add_task("Collecting data in time slices ...", total=len(sliced_skipgrams))
     for time_slice in time_slices:
-      train_, test_ = generate_random_train_test_data(
-        sliced_skipgrams[time_slices.index(time_slice)], txt2dict)
+      train_, test_ = generate_train_test_data(sliced_skipgrams[time_slice], act2idx, n_iters=10)
+      # train_, test_ = generate_random_train_test_data(
+      #   sliced_skipgrams[time_slices.index(time_slice)], txt2dict)
       train_test_data.append((train_, test_))
       progress.update(task, advance=1)
   
