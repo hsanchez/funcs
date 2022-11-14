@@ -448,7 +448,7 @@ def get_train_test_data_per_period(
   with new_progress_display(the_console) as progress:
     task = progress.add_task("Collecting data in time slices ...", total=len(sliced_skipgrams))
     for time_slice in time_slices:
-      train_, test_ = generate_train_test_data(sliced_skipgrams[time_slice], act2idx, n_iters=10)
+      train_, test_ = generate_train_test_data(sliced_skipgrams[time_slices.index(time_slice)], act2idx, n_iters=10)
       # train_, test_ = generate_random_train_test_data(
       #   sliced_skipgrams[time_slices.index(time_slice)], txt2dict)
       train_test_data.append((train_, test_))
