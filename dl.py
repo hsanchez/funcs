@@ -359,7 +359,7 @@ def learn_dynamic_activity_model(
     post_process_models=post_process_models,
     n_principal_components=n_principal_components)
   
-  dynamic_model.fit(timeline_slices, timeline_slice_models)
+  # dynamic_model.fit(timeline_slices, timeline_slice_models)
   
   report = TrainingReport(
     metrics=pd.DataFrame.from_dict(metrics),
