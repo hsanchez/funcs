@@ -376,6 +376,12 @@ def timeline_slicing(
     for time_period in tp_in_window_range:
       # 1. get data-frame partition
       tp_df = diachronic_df.loc[by_period_series == time_period]
+      
+      # TODO(HAS) This is is often empty...
+      if tp_df.shape[0] > 0 and tp_df.shape[1] > 0:
+        data.append([])
+        progress.update(task, advance=1)
+        continue
       # 2. get unique activities list for activity column
       tp_unique_vals = get_unique_column_values(input_df=tp_df, target_column=target_column)
       # 3. get skipgrams for the current time period
