@@ -378,7 +378,7 @@ def timeline_slicing(
       tp_df = diachronic_df.loc[by_period_series == time_period]
       
       # TODO(HAS) This is is often empty...
-      if tp_df.shape[0] > 0 and tp_df.shape[1] > 0:
+      if tp_df.empty:
         data.append([])
         progress.update(task, advance=1)
         continue
