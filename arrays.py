@@ -38,6 +38,13 @@ class Alignment:
   Y: ArrayLike = field(default_factory=list)
 
 
+
+def get_random_elements(array: ArrayLike, n: int) -> ArrayLike:
+  if isinstance(array, list):
+    array = np.array(array)
+  return np.random.choice(array, n, replace=False)
+
+
 def sigmoid(x: NumberLike) -> NumberLike:
   # to avoid RuntimeWarning: Overflow encountered in exp warning
   x = np.float128(x)
