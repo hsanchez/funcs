@@ -93,7 +93,7 @@ class SkipgramModel(nn.Module):
 
 ## XXX: this is a hack to get around the fact that the Accelerator class
 # Consider moving this to the SkigramModel class but not today
-def get_embedding_safely(embeddings, act_idx: int, device = None):
+def get_embedding_safely(embeddings, act_idx, device = None):
   if device is not None:
     act_vec = torch.tensor([act_idx]).to(device)
   else:
@@ -104,7 +104,8 @@ def get_embedding_safely(embeddings, act_idx: int, device = None):
 
 class AlignedW2V:
   def __init__(
-    self, act2idx: dict, 
+    self, 
+    act2idx: dict, 
     idx2act: dict, 
     post_process_models: bool = True, 
     n_principal_components: int = 10) -> None:
@@ -118,9 +119,12 @@ class AlignedW2V:
     if isinstance(timeline_slices, np.ndarray):
       timeline_slices = timeline_slices.tolist()
     
+    print(timeline_slices)
     for time_slice in timeline_slices:
       time_slice_model = timeline_slice_models[timeline_slices.index(time_slice)]
-      activity_embedding = np.array([get_embedding_safely(time_slice_model.embedding, self.act2idx[act], device).detach().cpu().numpy()[0] for act in self.act2idx])
+      assert isinstance(time_slice_model, SkipgramModel)
+      print(time_slice_model.embedding)
+      activity_embedding = np.array([get_embedding_safely(time_slice_model.embedding, self.act2idx[act], device=device).detach().cpu().numpy()[0] for act in self.act2idx])
       # if torch.cuda.is_available():
       #   activity_embedding = np.array([time_slice_model.get_embedding(act).detach().cpu().numpy()[0] for act in self.act2idx])
       # else:
