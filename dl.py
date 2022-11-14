@@ -84,10 +84,10 @@ class SkipgramModel(nn.Module):
   def get_embedding(self, activity: str) -> torch.Tensor:
     if activity not in self.act2idx:
       raise ValueError(f"Activity {activity} not in index")
-    if self.device is not None:
-      act_vec = torch.tensor([self.act2idx[activity]]).to(self.device)
-    else:
-      act_vec = torch.tensor([self.act2idx[activity]])
+    # if self.device is not None:
+    #   act_vec = torch.tensor([self.act2idx[activity]]).to(self.device)
+    # else:
+    act_vec = torch.tensor([self.act2idx[activity]])
     return self.embedding(act_vec).view(1,-1)
 
 
