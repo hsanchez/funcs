@@ -72,7 +72,7 @@ class SkipgramModel(nn.Module):
     self.embedding = nn.Embedding(acts_size, embedding_size)
     self.W = nn.Linear(embedding_size, embedding_size, bias=bias) 
     self.WT = nn.Linear(embedding_size, acts_size, bias=bias)
-    self.vocab = act2idx
+    self.act2idx = act2idx
     self.device = device
   
   def forward(self, X):
@@ -82,7 +82,7 @@ class SkipgramModel(nn.Module):
     return output_layer
   
   def get_embedding(self, activity: str) -> torch.Tensor:
-    if activity not in self.vocab:
+    if activity not in self.act2idx:
       raise ValueError(f"Activity {activity} not in index")
     if self.device is not None:
       act_vec = torch.tensor([self.act2idx[activity]]).to(self.device)
