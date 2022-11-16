@@ -119,17 +119,11 @@ class AlignedW2V:
     if isinstance(timeline_slices, np.ndarray):
       timeline_slices = timeline_slices.tolist()
     
-    print(timeline_slices)
+    stderr.print(f'Training model over timeline slices: {timeline_slices}')
     for time_slice in timeline_slices:
       time_slice_model = timeline_slice_models[timeline_slices.index(time_slice)]
       assert isinstance(time_slice_model, SkipgramModel)
       activity_embedding = np.array([get_embedding_safely(time_slice_model.embedding, self.act2idx[act], device=device).detach().cpu().numpy()[0] for act in self.act2idx])
-      # if torch.cuda.is_available():
-      #   activity_embedding = np.array([time_slice_model.get_embedding(act).detach().cpu().numpy()[0] for act in self.act2idx])
-      # else:
-      # activity_embedding = np.array([time_slice_model.get_embedding(act).detach().data.numpy()[0] for act in self.act2idx])
-        # activity_embedding = np.array([get_tensor_data(time_slice_model.get_embedding(act))[0]
-        #                              for act in self.act2idx])
       if self.post_process_models and len(activity_embedding) > 1:
         activity_embedding = all_but_the_top(
           activity_embedding,
